@@ -6,6 +6,8 @@ from enum import Enum, auto
 from subprocess import PIPE, Popen, STDOUT
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
+from eloGraf.stt_engine import STTController, STTProcessRunner
+
 
 class NerdDictationState(Enum):
     IDLE = auto()
@@ -23,7 +25,7 @@ OutputListener = Callable[[str], None]
 ExitListener = Callable[[int], None]
 
 
-class NerdDictationController:
+class NerdDictationController(STTController):
     """Pure controller that interprets nerd-dictation output into states."""
 
     def __init__(self) -> None:
@@ -109,7 +111,7 @@ class NerdDictationController:
             listener(return_code)
 
 
-class NerdDictationProcessRunner:
+class NerdDictationProcessRunner(STTProcessRunner):
     """Launch nerd-dictation and feed output into the controller."""
 
     def __init__(

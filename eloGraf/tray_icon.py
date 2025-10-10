@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from eloGraf.dialogs import ConfigPopup
 from eloGraf.dictation import CommandBuildError, build_dictation_command
+from eloGraf.stt_engine import STTController, STTProcessRunner
 from eloGraf.nerd_controller import (
     NerdDictationController,
     NerdDictationProcessRunner,

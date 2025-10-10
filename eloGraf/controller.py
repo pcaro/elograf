@@ -4,7 +4,8 @@ from typing import Callable, Optional, Sequence, Dict
 
 from eloGraf.dictation import CommandBuildError, build_dictation_command
 from eloGraf.state_machine import DictationStateMachine
-from eloGraf.nerd_controller import NerdDictationProcessRunner, NerdDictationController, NerdDictationState
+from eloGraf.stt_engine import STTProcessRunner
+from eloGraf.nerd_controller import NerdDictationController, NerdDictationState
 
 CommandHandler = Callable[[], None]
 
@@ -13,7 +14,7 @@ class DictationController:
     def __init__(
         self,
         settings,
-        runner: NerdDictationProcessRunner,
+        runner: STTProcessRunner,
         state_machine: DictationStateMachine,
         *,
         on_begin_command: Callable[[Sequence[str], Dict[str, str]], bool],
