@@ -205,7 +205,7 @@ def main() -> None:
         print("  elograf --list-models   : List available models")
         print("  elograf --set-model M   : Set active model to M")
         print("  elograf --list-engines  : List available STT engines")
-        print("  elograf --set-engine E  : Set active STT engine to E")
+        print("  elograf --use-engine E  : Use STT engine E for this session")
         sys.exit(1)
 
     # Normal startup - create new instance
@@ -238,14 +238,15 @@ def main() -> None:
     logging.info("  elograf --list-models   : List available models")
     logging.info("  elograf --set-model M   : Set active model to M")
     logging.info("  elograf --list-engines  : List available STT engines")
-    logging.info("  elograf --set-engine E  : Set active STT engine to E")
+    logging.info("  elograf --use-engine E  : Use STT engine E for this session")
 
     w = QWidget()
     trayIcon = SystemTrayIcon(
         QIcon(":/icons/elograf/24/nomicro.png"),
         args.begin if command == "begin" else False,
         ipc,
-        w
+        w,
+        temporary_engine=args.use_engine if hasattr(args, 'use_engine') and args.use_engine else None
     )
 
     # Setup signal handlers for graceful shutdown

@@ -32,7 +32,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             tooltip += f"\nModel: {name}"
         self.setToolTip(tooltip)
 
-    def __init__(self, icon: QIcon, start: bool, ipc: IPCManager, parent=None) -> None:
+    def __init__(self, icon: QIcon, start: bool, ipc: IPCManager, parent=None, temporary_engine: str = None) -> None:
         QSystemTrayIcon.__init__(self, icon, parent)
         self.settings = Settings()
         try:
@@ -40,6 +40,9 @@ class SystemTrayIcon(QSystemTrayIcon):
         except Exception as exc:
             logging.warning("Failed to load settings: %s", exc)
         self.ipc = ipc
+        self.temporary_engine = temporary_engine
+        if temporary_engine:
+            logging.info(f"Using temporary STT engine: {temporary_engine}")
         self.direct_click_enabled = self.settings.directClick
 
         menu = QMenu(parent)
@@ -206,8 +209,10 @@ class SystemTrayIcon(QSystemTrayIcon):
         return {}
 
     def _create_stt_engine(self) -> None:
-        engine_type = self.settings.sttEngine
+        # Use temporary engine if specified, otherwise use configured engine
+        engine_type = self.temporary_engine if self.temporary_engine else self.settings.sttEngine
         engine_kwargs = self._build_engine_kwargs(engine_type)
+        logging.info(f"Created {engine_type} STT engine")
         controller, runner = create_stt_engine(engine_type, **engine_kwargs)
         controller.add_state_listener(self._handle_dictation_state)
         controller.add_output_listener(self._handle_dictation_output)

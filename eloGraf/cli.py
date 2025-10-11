@@ -19,7 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--list-models", help="list available models", action="store_true")
     parser.add_argument("--set-model", help="set the active model by name", metavar="MODEL_NAME")
     parser.add_argument("--list-engines", help="list available STT engines", action="store_true")
-    parser.add_argument("--set-engine", help="set the active STT engine", metavar="ENGINE_NAME")
+    parser.add_argument("--use-engine", help="use STT engine for this session only", metavar="ENGINE_NAME")
     parser.add_argument("--resume", help="resume dictation if suspended", action="store_true")
     parser.add_argument("--suspend", help="suspend dictation in running instance", action="store_true")
     parser.add_argument("--toggle", help="toggle dictation (start/suspend/resume)", action="store_true")
@@ -33,37 +33,43 @@ class CliExit:
     stderr: str = ""
 
 
+AVAILABLE_ENGINES = [
+    "nerd-dictation",
+    "whisper-docker",
+    "google-cloud-speech",
+    "openai-realtime",
+]
+
+
+def validate_engine(engine_name: str) -> Optional[CliExit]:
+    """Validate engine name and return error if invalid."""
+    if engine_name not in AVAILABLE_ENGINES:
+        available = "\n".join(f"  - {engine}" for engine in AVAILABLE_ENGINES)
+        message = f"✗ Engine '{engine_name}' not found\n\nAvailable engines:\n{available}\n"
+        return CliExit(code=1, stderr=message)
+    return None
+
+
 def handle_engine_commands(args, settings: Settings) -> Optional[CliExit]:
-    if not args.list_engines and not args.set_engine:
+    if not args.list_engines and not args.use_engine:
         return None
 
     settings.load()
 
-    available_engines = [
-        "nerd-dictation",
-        "whisper-docker",
-        "google-cloud-speech",
-        "openai-realtime",
-    ]
-
     if args.list_engines:
         current_engine = settings.sttEngine
         lines = ["Available STT engines:", "-" * 80]
-        for engine in available_engines:
+        for engine in AVAILABLE_ENGINES:
             marker = "●" if engine == current_engine else " "
             lines.append(f"{marker} {engine}")
         lines.append("")
         return CliExit(code=0, stdout="\n".join(lines) + "\n")
 
-    if args.set_engine:
-        engine_name = args.set_engine
-        if engine_name in available_engines:
-            settings.sttEngine = engine_name
-            settings.save()
-            return CliExit(code=0, stdout=f"✓ STT engine set to '{engine_name}'\n")
-        available = "\n".join(f"  - {engine}" for engine in available_engines)
-        message = f"✗ Engine '{engine_name}' not found\n\nAvailable engines:\n{available}\n"
-        return CliExit(code=1, stderr=message)
+    if args.use_engine:
+        # Validate but don't exit - let the app start with this engine
+        error = validate_engine(args.use_engine)
+        if error:
+            return error
 
     return None
 
