@@ -265,14 +265,26 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                 "silence_duration_ms": self._vad_silence_duration_ms,
             }
 
-        input_transcription: Dict[str, str] = {"model": self._model}
+        transcription_model = self._model
+        if transcription_model not in {"whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"}:
+            logging.debug(
+                "OpenAI realtime model %s does not support direct transcription; falling back to gpt-4o-mini-transcribe",
+                transcription_model,
+            )
+            transcription_model = "gpt-4o-mini-transcribe"
+
+        input_transcription: Dict[str, str] = {"model": transcription_model}
         if self._language:
-            input_transcription["language"] = self._language
+            lang = self._language.lower()
+            if len(lang) > 2 and "-" in lang:
+                lang = lang.split("-", 1)[0]
+            if len(lang) > 2:
+                lang = lang[:2]
+            input_transcription["language"] = lang
 
         session_config = {
-            "type": "transcription_session.update",
+            "type": "session.update",
             "session": {
-                "model": self._model,
                 "input_audio_format": "pcm16",
                 "input_audio_transcription": input_transcription,
             }
