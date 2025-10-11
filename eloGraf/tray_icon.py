@@ -15,6 +15,7 @@ from eloGraf.stt_factory import create_stt_engine
 from eloGraf.nerd_controller import NerdDictationState
 from eloGraf.whisper_docker_controller import WhisperDockerState
 from eloGraf.google_cloud_speech_controller import GoogleCloudSpeechState
+from eloGraf.openai_realtime_controller import OpenAIRealtimeState
 from eloGraf.settings import DEFAULT_RATE, Settings
 from eloGraf.pidfile import remove_pid_file
 from eloGraf.state_machine import DictationStateMachine, IconState
@@ -96,6 +97,18 @@ class SystemTrayIcon(QSystemTrayIcon):
                 "channels": self.settings.googleCloudChannels,
                 "vad_enabled": self.settings.googleCloudVadEnabled,
                 "vad_threshold": self.settings.googleCloudVadThreshold,
+            }
+        elif engine_type == "openai-realtime":
+            engine_kwargs = {
+                "api_key": self.settings.openaiApiKey,
+                "model": self.settings.openaiModel,
+                "api_version": self.settings.openaiApiVersion,
+                "sample_rate": self.settings.openaiSampleRate,
+                "channels": self.settings.openaiChannels,
+                "vad_enabled": self.settings.openaiVadEnabled,
+                "vad_threshold": self.settings.openaiVadThreshold,
+                "vad_prefix_padding_ms": self.settings.openaiVadPrefixPaddingMs,
+                "vad_silence_duration_ms": self.settings.openaiVadSilenceDurationMs,
             }
 
         self.dictation_controller, self.dictation_runner = create_stt_engine(engine_type, **engine_kwargs)

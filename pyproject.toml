@@ -24,6 +24,7 @@ dependencies = [
     "pyaudio",
     "requests",
     "google-cloud-speech",
+    "websocket-client",
 ]
 
 [project.urls]

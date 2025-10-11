@@ -51,6 +51,15 @@ class Settings:
         self.googleCloudChannels: int = 1
         self.googleCloudVadEnabled: bool = True
         self.googleCloudVadThreshold: float = 500.0
+        self.openaiApiKey: str = ""
+        self.openaiModel: str = "gpt-4o-transcribe"
+        self.openaiApiVersion: str = "2025-08-28"
+        self.openaiSampleRate: int = 16000
+        self.openaiChannels: int = 1
+        self.openaiVadEnabled: bool = True
+        self.openaiVadThreshold: float = 0.5
+        self.openaiVadPrefixPaddingMs: int = 300
+        self.openaiVadSilenceDurationMs: int = 200
 
     def load(self) -> None:
         backend = self._backend
@@ -92,6 +101,15 @@ class Settings:
         self.googleCloudChannels = backend.value("GoogleCloudChannels", 1, type=int)
         self.googleCloudVadEnabled = backend.value("GoogleCloudVadEnabled", True, type=bool)
         self.googleCloudVadThreshold = backend.value("GoogleCloudVadThreshold", 500.0, type=float)
+        self.openaiApiKey = backend.value("OpenaiApiKey", "", type=str)
+        self.openaiModel = backend.value("OpenaiModel", "gpt-4o-transcribe", type=str)
+        self.openaiApiVersion = backend.value("OpenaiApiVersion", "2025-08-28", type=str)
+        self.openaiSampleRate = backend.value("OpenaiSampleRate", 16000, type=int)
+        self.openaiChannels = backend.value("OpenaiChannels", 1, type=int)
+        self.openaiVadEnabled = backend.value("OpenaiVadEnabled", True, type=bool)
+        self.openaiVadThreshold = backend.value("OpenaiVadThreshold", 0.5, type=float)
+        self.openaiVadPrefixPaddingMs = backend.value("OpenaiVadPrefixPaddingMs", 300, type=int)
+        self.openaiVadSilenceDurationMs = backend.value("OpenaiVadSilenceDurationMs", 200, type=int)
 
         self.models = []
         count = backend.beginReadArray("Models")
@@ -190,6 +208,36 @@ class Settings:
             backend.remove("GoogleCloudVadThreshold")
         else:
             backend.setValue("GoogleCloudVadThreshold", self.googleCloudVadThreshold)
+        self._set_or_remove("OpenaiApiKey", self.openaiApiKey)
+        if self.openaiModel == "gpt-4o-transcribe":
+            backend.remove("OpenaiModel")
+        else:
+            backend.setValue("OpenaiModel", self.openaiModel)
+        if self.openaiApiVersion == "2025-08-28":
+            backend.remove("OpenaiApiVersion")
+        else:
+            backend.setValue("OpenaiApiVersion", self.openaiApiVersion)
+        if self.openaiSampleRate == 16000:
+            backend.remove("OpenaiSampleRate")
+        else:
+            backend.setValue("OpenaiSampleRate", self.openaiSampleRate)
+        if self.openaiChannels == 1:
+            backend.remove("OpenaiChannels")
+        else:
+            backend.setValue("OpenaiChannels", self.openaiChannels)
+        backend.setValue("OpenaiVadEnabled", int(self.openaiVadEnabled))
+        if self.openaiVadThreshold == 0.5:
+            backend.remove("OpenaiVadThreshold")
+        else:
+            backend.setValue("OpenaiVadThreshold", self.openaiVadThreshold)
+        if self.openaiVadPrefixPaddingMs == 300:
+            backend.remove("OpenaiVadPrefixPaddingMs")
+        else:
+            backend.setValue("OpenaiVadPrefixPaddingMs", self.openaiVadPrefixPaddingMs)
+        if self.openaiVadSilenceDurationMs == 200:
+            backend.remove("OpenaiVadSilenceDurationMs")
+        else:
+            backend.setValue("OpenaiVadSilenceDurationMs", self.openaiVadSilenceDurationMs)
         if self.deviceName == "default":
             backend.remove("DeviceName")
         else:

@@ -17,7 +17,7 @@ def create_stt_engine(
     Create an STT controller and runner for the specified engine type.
 
     Args:
-        engine_type: Type of STT engine ("nerd-dictation", "whisper-docker", or "google-cloud-speech")
+        engine_type: Type of STT engine ("nerd-dictation", "whisper-docker", "google-cloud-speech", or "openai-realtime")
         **kwargs: Additional engine-specific configuration
 
     Returns:
@@ -32,6 +32,8 @@ def create_stt_engine(
         return _create_whisper_docker_engine(**kwargs)
     elif engine_type == "google-cloud-speech":
         return _create_google_cloud_speech_engine(**kwargs)
+    elif engine_type == "openai-realtime":
+        return _create_openai_realtime_engine(**kwargs)
     else:
         raise ValueError(f"Unsupported STT engine type: {engine_type}")
 
@@ -72,6 +74,20 @@ def _create_google_cloud_speech_engine(**kwargs) -> Tuple[STTController, STTProc
     return controller, runner
 
 
+def _create_openai_realtime_engine(**kwargs) -> Tuple[STTController, STTProcessRunner]:
+    """Create OpenAI Realtime API controller and runner."""
+    from eloGraf.openai_realtime_controller import (
+        OpenAIRealtimeController,
+        OpenAIRealtimeProcessRunner
+    )
+
+    controller = OpenAIRealtimeController()
+    runner = OpenAIRealtimeProcessRunner(controller, **kwargs)
+
+    logging.info("Created OpenAI Realtime STT engine")
+    return controller, runner
+
+
 def get_available_engines() -> list[str]:
     """
     Get list of available STT engines.
@@ -79,7 +95,7 @@ def get_available_engines() -> list[str]:
     Returns:
         List of engine names
     """
-    return ["nerd-dictation", "whisper-docker", "google-cloud-speech"]
+    return ["nerd-dictation", "whisper-docker", "google-cloud-speech", "openai-realtime"]
 
 
 def is_engine_available(engine_type: str) -> bool:
@@ -98,6 +114,8 @@ def is_engine_available(engine_type: str) -> bool:
         return _check_docker_available()
     elif engine_type == "google-cloud-speech":
         return _check_google_cloud_speech_available()
+    elif engine_type == "openai-realtime":
+        return _check_openai_realtime_available()
     else:
         return False
 
@@ -118,6 +136,15 @@ def _check_google_cloud_speech_available() -> bool:
     """Check if google-cloud-speech library is installed."""
     try:
         import google.cloud.speech_v2
+        return True
+    except ImportError:
+        return False
+
+
+def _check_openai_realtime_available() -> bool:
+    """Check if websocket-client library is installed."""
+    try:
+        import websocket
         return True
     except ImportError:
         return False
