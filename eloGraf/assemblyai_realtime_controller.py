@@ -244,7 +244,7 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
         try:
             response = requests.post(
                 "https://api.assemblyai.com/v2/realtime/token",
-                headers={"authorization": self._api_key},
+                headers={"Authorization": self._api_key},
                 json={"expires_in": self._token_ttl},
                 timeout=10,
             )
