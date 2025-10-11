@@ -160,11 +160,9 @@ class WhisperDockerProcessRunner(STTProcessRunner):
 
         self._controller.start()
 
-        # Start Docker container if not running
-        if not self._is_container_running():
-            if not self._start_container():
-                self._controller.fail_to_start()
-                return False
+        if not self._ensure_container_model():
+            self._controller.fail_to_start()
+            return False
 
         # Wait for API to be ready
         if not self._wait_for_api():
@@ -220,37 +218,85 @@ class WhisperDockerProcessRunner(STTProcessRunner):
         except (CalledProcessError, FileNotFoundError):
             return False
 
-    def _start_container(self) -> bool:
-        logging.info(f"Starting Whisper Docker container '{self._container_name}'...")
+    def _get_container_model(self) -> Optional[str]:
+        """Get the model that the container is currently configured with."""
         try:
-            # Check if container exists but is stopped
             result = run(
-                ["docker", "ps", "-a", "--filter", f"name={self._container_name}", "--format", "{{.Names}}"],
+                ["docker", "inspect", "--format", "{{range .Config.Env}}{{println .}}{{end}}", self._container_name],
                 capture_output=True,
                 text=True,
                 check=True,
             )
+            for line in result.stdout.splitlines():
+                if line.startswith("ASR_MODEL="):
+                    return line.split("=", 1)[1]
+            return None
+        except (CalledProcessError, FileNotFoundError):
+            return None
 
-            if self._container_name in result.stdout:
-                # Container exists, just start it
-                run(["docker", "start", self._container_name], check=True)
+    def _ensure_container_model(self) -> bool:
+        """Ensure docker container exists and matches requested model."""
+        try:
+            if self._is_container_running():
+                current_model = self._get_container_model()
+                if current_model == self._model:
+                    logging.info(
+                        "Whisper container already running with model '%s'",
+                        self._model,
+                    )
+                    return True
+
+                logging.info(
+                    "Whisper container running with model '%s', recreating for '%s'",
+                    current_model,
+                    self._model,
+                )
+                run(["docker", "stop", self._container_name], check=False, capture_output=True)
+                run(["docker", "rm", self._container_name], check=True)
+
             else:
-                # Create new container
-                run([
-                    "docker", "run", "-d",
-                    "--name", self._container_name,
-                    "-p", f"{self._api_port}:9000",
-                    "-e", f"ASR_MODEL={self._model}",
-                    "-e", "ASR_ENGINE=openai_whisper",
-                    "onerahmet/openai-whisper-asr-webservice:latest"
-                ], check=True)
+                result = run(
+                    ["docker", "ps", "-a", "--filter", f"name={self._container_name}", "--format", "{{.Names}}"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                if self._container_name in result.stdout:
+                    current_model = self._get_container_model()
+                    if current_model != self._model:
+                        logging.info(
+                            "Whisper container exists with model '%s', removing to use '%s'",
+                            current_model,
+                            self._model,
+                        )
+                        run(["docker", "rm", self._container_name], check=True)
+                    else:
+                        logging.info(
+                            "Starting existing Whisper container with model '%s'",
+                            self._model,
+                        )
+                        run(["docker", "start", self._container_name], check=True)
+                        return True
+        except (CalledProcessError, FileNotFoundError) as exc:
+            logging.error(f"Failed to manage Docker container: {exc}")
+            return False
 
+        logging.info(f"Starting Whisper Docker container '{self._container_name}' with model '{self._model}'...")
+        try:
+            run([
+                "docker", "run", "-d",
+                "--name", self._container_name,
+                "-p", f"{self._api_port}:9000",
+                "-e", f"ASR_MODEL={self._model}",
+                "-e", "ASR_ENGINE=openai_whisper",
+                "onerahmet/openai-whisper-asr-webservice:latest",
+            ], check=True)
             return True
         except (CalledProcessError, FileNotFoundError) as exc:
             logging.error(f"Failed to start Docker container: {exc}")
             return False
 
-    def _wait_for_api(self, timeout: int = 30) -> bool:
+    def _wait_for_api(self, timeout: int = 180) -> bool:
         logging.info("Waiting for Whisper API to be ready...")
         start_time = time.time()
 
@@ -258,8 +304,20 @@ class WhisperDockerProcessRunner(STTProcessRunner):
             try:
                 response = requests.get(f"http://localhost:{self._api_port}/docs", timeout=2)
                 if response.status_code == 200:
-                    logging.info("Whisper API is ready")
-                    return True
+                    logging.info("Whisper API web UI reachable, verifying health endpoint...")
+                    try:
+                        health = requests.get(
+                            f"http://localhost:{self._api_port}/health",
+                            timeout=5,
+                        )
+                        if health.status_code == 200:
+                            logging.info("Whisper API is ready")
+                            return True
+                        elif health.status_code in (404, 405, 501):
+                            return True
+                            logging.debug("Health endpoint not ready yet: %s", health.status_code)
+                    except requests.RequestException as exc:
+                        logging.debug("Health endpoint check failed (%s), assuming not ready yet", exc)
             except requests.RequestException:
                 pass
             time.sleep(1)
@@ -350,7 +408,13 @@ class WhisperDockerProcessRunner(STTProcessRunner):
                         if self._language:
                             params["language"] = self._language
 
-                        response = requests.post(self._api_url, files=files, params=params, timeout=30)
+                        logging.debug(
+                            "Sending audio chunk (%.2fs) to Whisper API (attempt %d/%d)",
+                            len(audio_data) / (self._sample_rate * self._channels * 2),
+                            attempt + 1,
+                            max_retries,
+                        )
+                        response = requests.post(self._api_url, files=files, params=params, timeout=120)
                         response.raise_for_status()
 
                         result = response.json()
@@ -360,7 +424,12 @@ class WhisperDockerProcessRunner(STTProcessRunner):
 
             except requests.RequestException as exc:
                 if attempt < max_retries - 1:
-                    logging.warning(f"Transcription attempt {attempt + 1} failed: {exc}. Retrying...")
+                    logging.warning(
+                        "Transcription attempt %d failed: %s. Response: %s. Retrying...",
+                        attempt + 1,
+                        exc,
+                        getattr(exc.response, "text", "<no response>"),
+                    )
                     time.sleep(1)
 
                     # Try to restart container if it's not running
