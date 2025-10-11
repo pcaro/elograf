@@ -208,6 +208,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                 "vad_prefix_padding_ms": self.settings.openaiVadPrefixPaddingMs,
                 "vad_silence_duration_ms": self.settings.openaiVadSilenceDurationMs,
                 "language": self.settings.openaiLanguage,
+                "pulse_device": (self.settings.deviceName if self.settings.deviceName and self.settings.deviceName != "default" else None),
             }
         return {}
 

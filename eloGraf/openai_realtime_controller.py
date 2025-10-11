@@ -139,6 +139,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         vad_threshold: float = 0.5,
         vad_prefix_padding_ms: int = 300,
         vad_silence_duration_ms: int = 200,
+        pulse_device: Optional[str] = None,
         input_simulator: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._controller = controller
@@ -171,6 +172,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         self._response_active = False
         self._current_response_id: Optional[str] = None
         self._current_transcript: List[str] = []
+        self._pulse_device = pulse_device
 
     def start(self, command: Sequence[str], env: Optional[Dict[str, str]] = None) -> bool:
         if self.is_running():
@@ -294,7 +296,11 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         session_config = {
             "type": "session.update",
             "session": {
-                "input_audio_format": "pcm16",
+                "input_audio_format": {
+                    "type": "pcm16",
+                    "sample_rate": self._sample_rate,
+                    "channels": self._channels,
+                },
                 "input_audio_transcription": input_transcription,
             }
         }
@@ -302,8 +308,12 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         if turn_detection:
             session_config["session"]["turn_detection"] = turn_detection
 
-        # Send session configuration
+        # Send session configuration + start input buffer
         ws.send(json.dumps(session_config))
+        try:
+            ws.send(json.dumps({"type": "input_audio_buffer.start"}))
+        except Exception as exc:
+            logging.debug("input_audio_buffer.start failed (will continue): %s", exc)
 
         self._controller.set_ready()
 
@@ -385,6 +395,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
             self._audio_recorder = AudioRecorder(
                 sample_rate=self._sample_rate,
                 channels=self._channels,
+                device=self._pulse_device,
             )
             self._controller.set_recording()
 
