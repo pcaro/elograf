@@ -11,11 +11,9 @@ from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 from eloGraf.dialogs import ConfigPopup
 from eloGraf.dictation import CommandBuildError, build_dictation_command
 from eloGraf.stt_engine import STTController, STTProcessRunner
-from eloGraf.nerd_controller import (
-    NerdDictationController,
-    NerdDictationProcessRunner,
-    NerdDictationState,
-)
+from eloGraf.stt_factory import create_stt_engine
+from eloGraf.nerd_controller import NerdDictationState
+from eloGraf.whisper_docker_controller import WhisperDockerState
 from eloGraf.settings import DEFAULT_RATE, Settings
 from eloGraf.pidfile import remove_pid_file
 from eloGraf.state_machine import DictationStateMachine, IconState
@@ -71,11 +69,21 @@ class SystemTrayIcon(QSystemTrayIcon):
         if self.micro.isNull():
             self.micro = QIcon(":/icons/elograf/24/micro.png")
         self.setIcon(self.nomicro)
-        self.dictation_controller = NerdDictationController()
+
+        # Create STT engine based on settings
+        engine_type = self.settings.sttEngine
+        engine_kwargs = {}
+        if engine_type == "whisper-docker":
+            engine_kwargs = {
+                "model": self.settings.whisperModel,
+                "language": self.settings.whisperLanguage if self.settings.whisperLanguage else None,
+                "api_port": self.settings.whisperPort,
+            }
+
+        self.dictation_controller, self.dictation_runner = create_stt_engine(engine_type, **engine_kwargs)
         self.dictation_controller.add_state_listener(self._handle_dictation_state)
         self.dictation_controller.add_output_listener(self._handle_dictation_output)
         self.dictation_controller.add_exit_listener(self._handle_dictation_exit)
-        self.dictation_runner = NerdDictationProcessRunner(self.dictation_controller)
         self.dictation_timer = QTimer(self)
         self.dictation_timer.setInterval(200)
         self.dictation_timer.timeout.connect(self.dictation_runner.poll)
@@ -173,25 +181,28 @@ class SystemTrayIcon(QSystemTrayIcon):
                 self.toggleAction.setText(self.tr("Start dictation"))
         self._update_action_states()
 
-    def _handle_dictation_state(self, state: NerdDictationState) -> None:
-        if state in (NerdDictationState.STARTING, NerdDictationState.LOADING):
+    def _handle_dictation_state(self, state) -> None:
+        # Handle both NerdDictationState and WhisperDockerState
+        state_name = state.name if hasattr(state, 'name') else str(state)
+
+        if state_name in ('STARTING', 'LOADING'):
             self.state_machine.set_loading()
-        elif state in (NerdDictationState.READY, NerdDictationState.DICTATING):
+        elif state_name in ('READY', 'DICTATING', 'RECORDING', 'TRANSCRIBING'):
             self.state_machine.set_ready()
-        elif state == NerdDictationState.SUSPENDED:
+        elif state_name == 'SUSPENDED':
             self.state_machine.set_suspended()
-        elif state in (NerdDictationState.STOPPING, NerdDictationState.IDLE):
+        elif state_name in ('STOPPING', 'IDLE'):
             self.state_machine.set_idle()
-        elif state == NerdDictationState.FAILED:
-            logging.error("nerd-dictation process failed")
+        elif state_name == 'FAILED':
+            logging.error("STT engine process failed")
             self.state_machine.set_idle()
 
     def _handle_dictation_output(self, line: str) -> None:
-        logging.info(f"nerd-dictation: {line}")
+        logging.info(f"STT engine: {line}")
 
     def _handle_dictation_exit(self, return_code: int) -> None:
         if return_code != 0:
-            logging.warning(f"nerd-dictation exited with code {return_code}")
+            logging.warning(f"STT engine exited with code {return_code}")
         if self.dictation_timer.isActive():
             self.dictation_timer.stop()
         self.dictating = False
@@ -346,12 +357,12 @@ class SystemTrayIcon(QSystemTrayIcon):
         try:
             cmd, env = build_dictation_command(self.settings, location)
         except CommandBuildError as exc:
-            logging.warning("Failed to build nerd-dictation command: %s", exc)
+            logging.warning("Failed to build STT command: %s", exc)
             self.state_machine.set_idle()
             self._postcommand_ran = True
             return
         logging.debug(
-            "Starting nerd-dictation with the command {}".format(" ".join(cmd))
+            "Starting STT engine with the command {}".format(" ".join(cmd))
         )
         if self.dictation_runner.start(cmd, env=env):
             self.state_machine.set_loading()
@@ -388,7 +399,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def stop_dictate(self) -> None:
         if self.dictation_runner.is_running():
-            logging.debug("Stopping nerd-dictation")
+            logging.debug("Stopping STT engine")
             self.dictation_runner.stop()
         self.state_machine.set_idle()
 
@@ -414,7 +425,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.controller_toggle()
 
     def begin(self) -> None:
-        """Start dictation (renamed from 'start' to match nerd-dictation)"""
+        """Start dictation"""
         logging.debug("Begin dictation")
         if self.suspended:
             self.resume()
@@ -425,7 +436,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             logging.info("Dictation already started")
 
     def end(self) -> None:
-        """Stop dictation (renamed from 'stop' to match nerd-dictation)"""
+        """Stop dictation"""
         logging.debug("End dictation")
         if self.dictating:
             self.stop_dictate()

@@ -33,6 +33,10 @@ class Settings:
         self.suspendShortcut: str = ""
         self.resumeShortcut: str = ""
         self.toggleShortcut: str = ""
+        self.sttEngine: str = "nerd-dictation"
+        self.whisperModel: str = "base"
+        self.whisperLanguage: str = ""
+        self.whisperPort: int = 9000
 
     def load(self) -> None:
         backend = self._backend
@@ -56,6 +60,10 @@ class Settings:
         self.suspendShortcut = backend.value("SuspendShortcut", "", type=str)
         self.resumeShortcut = backend.value("ResumeShortcut", "", type=str)
         self.toggleShortcut = backend.value("ToggleShortcut", "", type=str)
+        self.sttEngine = backend.value("STTEngine", "nerd-dictation", type=str)
+        self.whisperModel = backend.value("WhisperModel", "base", type=str)
+        self.whisperLanguage = backend.value("WhisperLanguage", "", type=str)
+        self.whisperPort = backend.value("WhisperPort", 9000, type=int)
 
         self.models = []
         count = backend.beginReadArray("Models")
@@ -106,6 +114,13 @@ class Settings:
         self._set_or_remove("SuspendShortcut", self.suspendShortcut)
         self._set_or_remove("ResumeShortcut", self.resumeShortcut)
         self._set_or_remove("ToggleShortcut", self.toggleShortcut)
+        backend.setValue("STTEngine", self.sttEngine)
+        backend.setValue("WhisperModel", self.whisperModel)
+        self._set_or_remove("WhisperLanguage", self.whisperLanguage)
+        if self.whisperPort == 9000:
+            backend.remove("WhisperPort")
+        else:
+            backend.setValue("WhisperPort", self.whisperPort)
         if self.deviceName == "default":
             backend.remove("DeviceName")
         else:
