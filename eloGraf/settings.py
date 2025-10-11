@@ -63,7 +63,7 @@ class Settings:
         self.openaiVadSilenceDurationMs: int = 200
         self.openaiLanguage: str = "en-US"
         self.assemblyApiKey: str = ""
-        self.assemblyModel: str = "default"
+        self.assemblyModel: str = "universal"
         self.assemblyLanguage: str = ""
         self.assemblySampleRate: int = 16000
         self.assemblyChannels: int = 1
@@ -119,7 +119,7 @@ class Settings:
         self.openaiVadSilenceDurationMs = backend.value("OpenaiVadSilenceDurationMs", 200, type=int)
         self.openaiLanguage = backend.value("OpenaiLanguage", "en-US", type=str)
         self.assemblyApiKey = backend.value("AssemblyApiKey", "", type=str)
-        self.assemblyModel = backend.value("AssemblyModel", "default", type=str)
+        self.assemblyModel = backend.value("AssemblyModel", "universal", type=str)
         self.assemblyLanguage = backend.value("AssemblyLanguage", "", type=str)
         self.assemblySampleRate = backend.value("AssemblySampleRate", 16000, type=int)
         self.assemblyChannels = backend.value("AssemblyChannels", 1, type=int)
@@ -256,7 +256,7 @@ class Settings:
         else:
             backend.setValue("OpenaiLanguage", self.openaiLanguage)
         self._set_or_remove("AssemblyApiKey", self.assemblyApiKey)
-        if self.assemblyModel == "default":
+        if self.assemblyModel == "universal":
             backend.remove("AssemblyModel")
         else:
             backend.setValue("AssemblyModel", self.assemblyModel)

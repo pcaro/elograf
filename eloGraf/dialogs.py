@@ -256,6 +256,7 @@ class AdvancedUI(QDialog):
 
         self.ui.assembly_api_key_le = QLineEdit()
         self.ui.assembly_model_le = QLineEdit()
+        self.ui.assembly_model_le.setText("universal")
         self.ui.assembly_language_le = QLineEdit()
         self.ui.assembly_sample_rate_le = QLineEdit()
         self.ui.assembly_channels_le = QLineEdit()

@@ -11,6 +11,7 @@ from subprocess import Popen, PIPE
 import shutil
 
 import requests
+import websocket
 
 from eloGraf.stt_engine import STTController, STTProcessRunner
 
@@ -156,6 +157,7 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
         self._token_ttl = 3600
         self._session_active = False
         self.fatal_error = False
+        self._use_direct_auth = False
 
     def start(self, command, env: Optional[Dict[str, str]] = None) -> bool:  # command unused
         if self.is_running():
@@ -177,23 +179,39 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
             return False
 
         token = self._generate_token()
-        if not token:
-            if self.fatal_error:
-                logging.error("AssemblyAI realtime token request failed permanently; aborting start")
-            else:
-                logging.error("AssemblyAI realtime token request failed")
-            self._controller.fail_to_start()
-            return False
+        headers = None
 
-        ws_url = (
-            f"wss://api.assemblyai.com/v2/realtime/ws?sample_rate={self._sample_rate}&token={token}"
-        )
-        if self._model and self._model != "default":
-            ws_url += f"&model={self._model}"
+        if self._use_direct_auth:
+            logging.info("Using direct API key authentication for AssemblyAI realtime")
+            query = [
+                f"sample_rate={self._sample_rate}",
+                "format_turns=true",
+            ]
+            if self._model and self._model != "default":
+                query.append(f"model={self._model}")
+            if self._language:
+                query.append(f"language_code={self._language}")
+            ws_url = "wss://streaming.assemblyai.com/v3/ws?" + "&".join(query)
+            headers = {"Authorization": self._api_key}
+        else:
+            if not token:
+                logging.error("AssemblyAI realtime token request failed")
+                self._controller.fail_to_start()
+                return False
+            query = [
+                f"sample_rate={self._sample_rate}",
+                f"token={token}",
+            ]
+            if self._model and self._model != "default":
+                query.append(f"model={self._model}")
+            if self._language:
+                query.append(f"language_code={self._language}")
+            ws_url = "wss://api.assemblyai.com/v2/realtime/ws?" + "&".join(query)
 
         self._stop_event.clear()
         self._ws = websocket.WebSocketApp(
             ws_url,
+            header=headers,
             on_open=self._on_open,
             on_message=self._on_message,
             on_error=self._on_error,
@@ -248,21 +266,52 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
                 json={"expires_in": self._token_ttl},
                 timeout=10,
             )
-            response.raise_for_status()
-            data = response.json()
-            token = data.get("token")
-            if not token:
-                logging.error("AssemblyAI realtime token response missing token")
-                self.fatal_error = True
-            return token
         except requests.RequestException as exc:
-            if getattr(exc, "response", None) is not None and exc.response.status_code == 401:
-                logging.error("AssemblyAI realtime token request unauthorized (check API key)")
-                self.fatal_error = True
-            else:
-                logging.error("Failed to obtain AssemblyAI realtime token: %s", exc)
-            self.fatal_error = True if getattr(exc, "response", None) is not None and exc.response.status_code == 401 else self.fatal_error
+            logging.error("Failed to reach AssemblyAI realtime token endpoint: %s", exc)
+            self.fatal_error = True
             return None
+
+        status = response.status_code
+        if status == 401:
+            logging.warning(
+                "AssemblyAI realtime token endpoint returned 401; using direct API key authentication"
+            )
+            self._use_direct_auth = True
+            return None
+
+        if status >= 400:
+            try:
+                data = response.json()
+            except Exception:
+                data = {}
+            error_message = data.get("error") or data.get("message") or response.text
+            if error_message and "Model deprecated" in error_message:
+                logging.warning(
+                    "AssemblyAI token endpoint reports deprecated model; using direct API key authentication"
+                )
+                self._use_direct_auth = True
+                return None
+            logging.error(
+                "Failed to obtain AssemblyAI realtime token (%s): %s",
+                status,
+                error_message,
+            )
+            self.fatal_error = True
+            return None
+
+        try:
+            data = response.json()
+        except ValueError:
+            logging.warning("AssemblyAI token response not JSON; falling back to direct auth")
+            self._use_direct_auth = True
+            return None
+
+        token = data.get("token")
+        if not token:
+            logging.warning("AssemblyAI token response missing 'token'; falling back to direct auth")
+            self._use_direct_auth = True
+            return None
+        return token
 
     def _on_open(self, ws) -> None:
         logging.info("AssemblyAI Realtime WebSocket connected")
@@ -280,22 +329,26 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
             logging.debug("Non-JSON message from AssemblyAI: %s", message)
             return
 
-        message_type = data.get("message_type")
-        if message_type == "PartialTranscript":
-            text = data.get("text", "").strip()
+        message_type = data.get("message_type") or data.get("type")
+
+        if message_type in ("PartialTranscript", "Partial"):
+            text = data.get("text") or data.get("transcript") or ""
+            text = text.strip()
             if text:
                 logging.debug("AssemblyAI partial: %s", text)
-        elif message_type == "FinalTranscript":
-            text = data.get("text", "").strip()
-            if text:
+        elif message_type in ("FinalTranscript", "Final", "Turn"):
+            text = data.get("text") or data.get("transcript") or ""
+            text = text.strip()
+            is_final = data.get("turn_is_final") or data.get("turn_is_formatted")
+            if text and (message_type != "Turn" or is_final):
                 self._controller.handle_output(text)
                 self._input_simulator(text)
-        elif message_type == "SessionBegins":
+        elif message_type in ("SessionBegins", "Begin"):
             self._session_active = True
             self._controller.set_recording()
-        elif message_type == "SessionTerminated":
+        elif message_type in ("SessionTerminated", "Termination"):
             self._session_active = False
-        elif message_type == "Error":
+        elif message_type in ("Error", "error"):
             logging.error("AssemblyAI realtime error: %s", data)
         else:
             logging.debug("AssemblyAI message: %s", data)
@@ -333,10 +386,12 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
                 if len(self._audio_buffer) >= self._bytes_per_commit and self._ws:
                     chunk = bytes(self._audio_buffer[: self._bytes_per_commit])
                     del self._audio_buffer[: self._bytes_per_commit]
-                    audio_payload = base64.b64encode(chunk).decode("utf-8")
-                    message = json.dumps({"audio_data": audio_payload})
                     try:
-                        self._ws.send(message)
+                        if self._use_direct_auth:
+                            self._ws.send(chunk, opcode=websocket.ABNF.OPCODE_BINARY)
+                        else:
+                            audio_payload = base64.b64encode(chunk).decode("utf-8")
+                            self._ws.send(json.dumps({"audio_data": audio_payload}))
                         self._controller.set_transcribing()
                     except Exception as exc:
                         logging.error("Failed to send audio chunk to AssemblyAI: %s", exc)
@@ -345,8 +400,12 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
             # flush remaining audio
             if self._audio_buffer and self._ws:
                 try:
-                    audio_payload = base64.b64encode(bytes(self._audio_buffer)).decode("utf-8")
-                    self._ws.send(json.dumps({"audio_data": audio_payload}))
+                    chunk = bytes(self._audio_buffer)
+                    if self._use_direct_auth:
+                        self._ws.send(chunk, opcode=websocket.ABNF.OPCODE_BINARY)
+                    else:
+                        audio_payload = base64.b64encode(chunk).decode("utf-8")
+                        self._ws.send(json.dumps({"audio_data": audio_payload}))
                 except Exception:
                     pass
         except Exception as exc:
@@ -355,7 +414,10 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
         finally:
             try:
                 if self._ws and self._session_active:
-                    self._ws.send(json.dumps({"terminate_session": True}))
+                    if self._use_direct_auth:
+                        self._ws.send(json.dumps({"type": "Terminate"}))
+                    else:
+                        self._ws.send(json.dumps({"terminate_session": True}))
             except Exception:
                 pass
 

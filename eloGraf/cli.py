@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from eloGraf.settings import Settings
+from eloGraf.stt_factory import get_available_engines
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -33,12 +34,7 @@ class CliExit:
     stderr: str = ""
 
 
-AVAILABLE_ENGINES = [
-    "nerd-dictation",
-    "whisper-docker",
-    "google-cloud-speech",
-    "openai-realtime",
-]
+AVAILABLE_ENGINES = get_available_engines()
 
 
 def validate_engine(engine_name: str) -> Optional[CliExit]:
