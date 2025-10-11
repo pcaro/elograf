@@ -128,6 +128,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         *,
         api_key: str,
         model: str = "gpt-4o-transcribe",
+        language: Optional[str] = None,
         api_version: str = "2025-08-28",
         sample_rate: int = 16000,
         channels: int = 1,
@@ -141,6 +142,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         self._controller = controller
         self._api_key = api_key
         self._model = model
+        self._language = language
         self._api_version = api_version
         self._sample_rate = sample_rate
         self._channels = channels
@@ -225,7 +227,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
             import websocket
 
             # Build WebSocket URL
-            ws_url = f"wss://api.openai.com/v1/realtime?api-version={self._api_version}"
+            ws_url = f"wss://api.openai.com/v1/realtime?model={self._model}&api-version={self._api_version}"
 
             self._controller.set_connecting()
 
@@ -263,13 +265,16 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                 "silence_duration_ms": self._vad_silence_duration_ms,
             }
 
+        input_transcription: Dict[str, str] = {"model": self._model}
+        if self._language:
+            input_transcription["language"] = self._language
+
         session_config = {
             "type": "transcription_session.update",
             "session": {
+                "model": self._model,
                 "input_audio_format": "pcm16",
-                "input_audio_transcription": {
-                    "model": self._model,
-                },
+                "input_audio_transcription": input_transcription,
             }
         }
 

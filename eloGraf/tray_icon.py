@@ -3,13 +3,15 @@ from __future__ import annotations
 import logging
 import os
 from subprocess import Popen
+from typing import Any, Dict, Tuple
 
 from PyQt6.QtCore import QCoreApplication, QTimer
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from eloGraf.dialogs import ConfigPopup
+from eloGraf.dialogs import AdvancedUI
 from eloGraf.dictation import CommandBuildError, build_dictation_command
+from eloGraf.ipc import IPCManager
 from eloGraf.stt_engine import STTController, STTProcessRunner
 from eloGraf.stt_factory import create_stt_engine
 from eloGraf.nerd_controller import NerdDictationState
@@ -40,14 +42,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.ipc = ipc
 
         menu = QMenu(parent)
-        self.direct_click_enabled = self.settings.directClick
-        # single left click doesn't work in some environments. https://bugreports.qt.io/browse/QTBUG-55911
-        # Thus by default we don't enable it, but add Start/Stop menu entries
-        if not self.direct_click_enabled:
-            startAction = menu.addAction(self.tr("Start dictation"))
-            stopAction = menu.addAction(self.tr("Stop dictation"))
-            startAction.triggered.connect(self.begin)
-            stopAction.triggered.connect(self.end)
+
         self.toggleAction = menu.addAction(self.tr("Toggle dictation"))
         self.suspendAction = menu.addAction(self.tr("Suspend dictation"))
         self.resumeAction = menu.addAction(self.tr("Resume dictation"))
@@ -72,60 +67,17 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.micro = QIcon(":/icons/elograf/24/micro.png")
         self.setIcon(self.nomicro)
 
-        # Create STT engine based on settings
-        engine_type = self.settings.sttEngine
-        engine_kwargs = {}
-        if engine_type == "whisper-docker":
-            engine_kwargs = {
-                "model": self.settings.whisperModel,
-                "language": self.settings.whisperLanguage if self.settings.whisperLanguage else None,
-                "api_port": self.settings.whisperPort,
-                "chunk_duration": self.settings.whisperChunkDuration,
-                "sample_rate": self.settings.whisperSampleRate,
-                "channels": self.settings.whisperChannels,
-                "vad_enabled": self.settings.whisperVadEnabled,
-                "vad_threshold": self.settings.whisperVadThreshold,
-                "auto_reconnect": self.settings.whisperAutoReconnect,
-            }
-        elif engine_type == "google-cloud-speech":
-            engine_kwargs = {
-                "credentials_path": self.settings.googleCloudCredentialsPath if self.settings.googleCloudCredentialsPath else None,
-                "project_id": self.settings.googleCloudProjectId if self.settings.googleCloudProjectId else None,
-                "language_code": self.settings.googleCloudLanguageCode,
-                "model": self.settings.googleCloudModel,
-                "sample_rate": self.settings.googleCloudSampleRate,
-                "channels": self.settings.googleCloudChannels,
-                "vad_enabled": self.settings.googleCloudVadEnabled,
-                "vad_threshold": self.settings.googleCloudVadThreshold,
-            }
-        elif engine_type == "openai-realtime":
-            engine_kwargs = {
-                "api_key": self.settings.openaiApiKey,
-                "model": self.settings.openaiModel,
-                "api_version": self.settings.openaiApiVersion,
-                "sample_rate": self.settings.openaiSampleRate,
-                "channels": self.settings.openaiChannels,
-                "vad_enabled": self.settings.openaiVadEnabled,
-                "vad_threshold": self.settings.openaiVadThreshold,
-                "vad_prefix_padding_ms": self.settings.openaiVadPrefixPaddingMs,
-                "vad_silence_duration_ms": self.settings.openaiVadSilenceDurationMs,
-            }
-
-        self.dictation_controller, self.dictation_runner = create_stt_engine(engine_type, **engine_kwargs)
-        self.dictation_controller.add_state_listener(self._handle_dictation_state)
-        self.dictation_controller.add_output_listener(self._handle_dictation_output)
-        self.dictation_controller.add_exit_listener(self._handle_dictation_exit)
         self.dictation_timer = QTimer(self)
         self.dictation_timer.setInterval(200)
-        self.dictation_timer.timeout.connect(self.dictation_runner.poll)
+        self._pending_engine_refresh = False
+        self._create_stt_engine()
+
         self.dictating = False
         self.suspended = False
         self._postcommand_ran = True
         self.state_machine.set_idle()
         self._update_action_states()
         self._update_tooltip()
-        self.activated.connect(self._handle_activation)
-        self.start_cli = start
 
         # Connect IPC command handler
         self.ipc.command_received.connect(self._handle_ipc_command)
@@ -190,6 +142,88 @@ class SystemTrayIcon(QSystemTrayIcon):
         painter.end()
         return QIcon(pixmap)
 
+    def _build_engine_kwargs(self, engine_type: str) -> Dict[str, Any]:
+        if engine_type == "whisper-docker":
+            return {
+                "model": self.settings.whisperModel,
+                "language": self.settings.whisperLanguage if self.settings.whisperLanguage else None,
+                "api_port": self.settings.whisperPort,
+                "chunk_duration": self.settings.whisperChunkDuration,
+                "sample_rate": self.settings.whisperSampleRate,
+                "channels": self.settings.whisperChannels,
+                "vad_enabled": self.settings.whisperVadEnabled,
+                "vad_threshold": self.settings.whisperVadThreshold,
+                "auto_reconnect": self.settings.whisperAutoReconnect,
+            }
+        if engine_type == "google-cloud-speech":
+            return {
+                "credentials_path": self.settings.googleCloudCredentialsPath if self.settings.googleCloudCredentialsPath else None,
+                "project_id": self.settings.googleCloudProjectId if self.settings.googleCloudProjectId else None,
+                "language_code": self.settings.googleCloudLanguageCode,
+                "model": self.settings.googleCloudModel,
+                "sample_rate": self.settings.googleCloudSampleRate,
+                "channels": self.settings.googleCloudChannels,
+                "vad_enabled": self.settings.googleCloudVadEnabled,
+                "vad_threshold": self.settings.googleCloudVadThreshold,
+            }
+        if engine_type == "openai-realtime":
+            return {
+                "api_key": self.settings.openaiApiKey,
+                "model": self.settings.openaiModel,
+                "api_version": self.settings.openaiApiVersion,
+                "sample_rate": self.settings.openaiSampleRate,
+                "channels": self.settings.openaiChannels,
+                "vad_enabled": self.settings.openaiVadEnabled,
+                "vad_threshold": self.settings.openaiVadThreshold,
+                "vad_prefix_padding_ms": self.settings.openaiVadPrefixPaddingMs,
+                "vad_silence_duration_ms": self.settings.openaiVadSilenceDurationMs,
+                "language": self.settings.openaiLanguage,
+            }
+        return {}
+
+    def _create_stt_engine(self) -> None:
+        engine_type = self.settings.sttEngine
+        engine_kwargs = self._build_engine_kwargs(engine_type)
+        controller, runner = create_stt_engine(engine_type, **engine_kwargs)
+        controller.add_state_listener(self._handle_dictation_state)
+        controller.add_output_listener(self._handle_dictation_output)
+        controller.add_exit_listener(self._handle_dictation_exit)
+        self.dictation_controller = controller
+        self.dictation_runner = runner
+        self.dictation_timer.timeout.connect(self.dictation_runner.poll)
+
+    def _refresh_stt_engine(self) -> None:
+        runner = getattr(self, "dictation_runner", None)
+        if runner and runner.is_running():
+            logging.info("STT engine running; stopping before applying new settings")
+            self.stop_dictate()
+            self._pending_engine_refresh = True
+            return
+
+        logging.info("Refreshing STT engine with updated settings")
+        was_active = self.dictation_timer.isActive()
+        self._pending_engine_refresh = False
+        self.dictation_timer.stop()
+        disconnected = False
+        if runner:
+            try:
+                self.dictation_timer.timeout.disconnect(runner.poll)
+                disconnected = True
+            except (TypeError, RuntimeError):
+                pass
+        try:
+            self._create_stt_engine()
+        except Exception:
+            if disconnected and runner:
+                try:
+                    self.dictation_timer.timeout.connect(runner.poll)
+                    if was_active:
+                        self.dictation_timer.start()
+                except (TypeError, RuntimeError):
+                    pass
+            raise
+        self._update_action_states()
+
     def _apply_state(self, icon_state: IconState, dictating: bool, suspended: bool) -> None:
         self.dictating = dictating
         self.suspended = suspended
@@ -241,8 +275,8 @@ class SystemTrayIcon(QSystemTrayIcon):
         self._update_action_states()
         self._update_tooltip()
         self._run_postcommand_once()
-        if self.start_cli:
-            QCoreApplication.exit()
+        if getattr(self, "_pending_engine_refresh", False):
+            self._refresh_stt_engine()
 
     def _run_postcommand_once(self) -> None:
         if self._postcommand_ran:
@@ -366,13 +400,10 @@ class SystemTrayIcon(QSystemTrayIcon):
     def dictate(self) -> None:
         model, location = self.currentModel()
         if model == "" or not location:
-            dialog = ConfigPopup(os.path.basename(model) if model else "")
-            if dialog.exec() and dialog.returnValue and dialog.returnValue[0]:
-                self.settings.setValue("Model/name", dialog.returnValue[0])
-                self.settings.save()
-                model, location = self.currentModel()
-            else:
-                logging.info("No model selected")
+            self.show_config_dialog()
+            model, location = self.currentModel()
+            if not model or not location:
+                logging.info("No model selected, exiting dictate.")
                 self.state_machine.set_idle()
                 return
         if not location:
@@ -434,19 +465,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.dictation_runner.stop()
         self.state_machine.set_idle()
 
-    def commute(self, reason) -> None:
-        logging.debug(f"Commute dictation {'off' if self.dictating else 'on'}")
-        if reason == QSystemTrayIcon.ActivationReason.Context:
-            return
-        if not self.direct_click_enabled:
-            return
-        self.controller_toggle()
 
-    def _handle_activation(self, reason) -> None:
-        if not self.direct_click_enabled:
-            return
-        if reason != QSystemTrayIcon.ActivationReason.Context:
-            self.controller_toggle()
 
     def controller_toggle(self) -> None:
         action = self.state_machine.toggle()
@@ -473,20 +492,187 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.stop_dictate()
         self.state_machine.set_idle()
 
+    def show_config_dialog(self) -> None:
+        adv_window = AdvancedUI()
+
+        # General settings
+        adv_window.ui.precommand.setText(self.settings.precommand)
+        adv_window.ui.postcommand.setText(self.settings.postcommand)
+        adv_window.ui.env.setText(self.settings.env)
+        adv_window.ui.tool_cb.setCurrentText(self.settings.tool)
+        adv_window.ui.keyboard_le.setText(self.settings.keyboard)
+        index = adv_window.ui.deviceName.findData(self.settings.deviceName)
+        if index >= 0:
+            adv_window.ui.deviceName.setCurrentIndex(index)
+
+        # Nerd-Dictation settings
+        adv_window.ui.sampleRate.setText(str(self.settings.sampleRate))
+        adv_window.ui.timeout.setValue(self.settings.timeout)
+        adv_window.ui.timeoutDisplay.setText(str(self.settings.timeout))
+        adv_window.ui.idleTime.setValue(self.settings.idleTime)
+        adv_window.ui.idleDisplay.setText(str(self.settings.idleTime))
+        adv_window.ui.punctuate.setValue(self.settings.punctuate)
+        adv_window.ui.punctuateDisplay.setText(str(self.settings.punctuate))
+        adv_window.ui.fullSentence.setChecked(self.settings.fullSentence)
+        adv_window.ui.digits.setChecked(self.settings.digits)
+        adv_window.ui.useSeparator.setChecked(self.settings.useSeparator)
+        adv_window.ui.freecommand.setText(self.settings.freeCommand)
+
+        # Whisper Docker settings
+        adv_window.ui.whisper_model_cb.setCurrentText(self.settings.whisperModel)
+        adv_window.ui.whisper_language_le.setText(self.settings.whisperLanguage)
+        adv_window.ui.whisper_port_le.setText(str(self.settings.whisperPort))
+        adv_window.ui.whisper_chunk_le.setText(str(self.settings.whisperChunkDuration))
+        adv_window.ui.whisper_sample_rate_le.setText(str(self.settings.whisperSampleRate))
+        adv_window.ui.whisper_channels_le.setText(str(self.settings.whisperChannels))
+        adv_window.ui.whisper_vad_cb.setChecked(self.settings.whisperVadEnabled)
+        adv_window.ui.whisper_vad_threshold_le.setText(str(self.settings.whisperVadThreshold))
+        adv_window.ui.whisper_auto_reconnect_cb.setChecked(self.settings.whisperAutoReconnect)
+
+        # Google Cloud Speech settings
+        adv_window.ui.gcs_credentials_le.setText(self.settings.googleCloudCredentialsPath)
+        adv_window.ui.gcs_project_id_le.setText(self.settings.googleCloudProjectId)
+        adv_window.ui.gcs_language_code_le.setText(self.settings.googleCloudLanguageCode)
+        adv_window.ui.gcs_model_le.setText(self.settings.googleCloudModel)
+        adv_window.ui.gcs_sample_rate_le.setText(str(self.settings.googleCloudSampleRate))
+        adv_window.ui.gcs_channels_le.setText(str(self.settings.googleCloudChannels))
+        adv_window.ui.gcs_vad_cb.setChecked(self.settings.googleCloudVadEnabled)
+        adv_window.ui.gcs_vad_threshold_le.setText(str(self.settings.googleCloudVadThreshold))
+
+        # OpenAI Realtime settings
+        adv_window.ui.openai_api_key_le.setText(self.settings.openaiApiKey)
+        adv_window.ui.openai_model_le.setText(self.settings.openaiModel)
+        adv_window.ui.openai_api_version_le.setText(self.settings.openaiApiVersion)
+        adv_window.ui.openai_sample_rate_le.setText(str(self.settings.openaiSampleRate))
+        adv_window.ui.openai_channels_le.setText(str(self.settings.openaiChannels))
+        adv_window.ui.openai_vad_cb.setChecked(self.settings.openaiVadEnabled)
+        adv_window.ui.openai_vad_threshold_le.setText(str(self.settings.openaiVadThreshold))
+        adv_window.ui.openai_vad_prefix_le.setText(str(self.settings.openaiVadPrefixPaddingMs))
+        adv_window.ui.openai_vad_silence_le.setText(str(self.settings.openaiVadSilenceDurationMs))
+        adv_window.ui.openai_language_le.setText(self.settings.openaiLanguage)
+
+        # Shortcuts
+        adv_window.beginShortcut.setKeySequence(self.settings.beginShortcut)
+        adv_window.endShortcut.setKeySequence(self.settings.endShortcut)
+        adv_window.toggleShortcut.setKeySequence(self.settings.toggleShortcut)
+        adv_window.suspendShortcut.setKeySequence(self.settings.suspendShortcut)
+        adv_window.resumeShortcut.setKeySequence(self.settings.resumeShortcut)
+
+        # Set STT engine and initial tab
+        adv_window.ui.stt_engine_cb.setCurrentText(self.settings.sttEngine)
+        adv_window._on_stt_engine_changed(self.settings.sttEngine)
+
+        if adv_window.exec():
+            # General settings
+            self.settings.precommand = adv_window.ui.precommand.text()
+            self.settings.postcommand = adv_window.ui.postcommand.text()
+            self.settings.env = adv_window.ui.env.text()
+            self.settings.tool = adv_window.ui.tool_cb.currentText()
+            self.settings.keyboard = adv_window.ui.keyboard_le.text()
+            device_data = adv_window.ui.deviceName.currentData()
+            self.settings.deviceName = device_data if device_data else "default"
+
+            # Nerd-Dictation settings
+            try:
+                self.settings.sampleRate = int(adv_window.ui.sampleRate.text())
+            except (ValueError, TypeError):
+                self.settings.sampleRate = DEFAULT_RATE
+            self.settings.timeout = adv_window.ui.timeout.value()
+            self.settings.idleTime = adv_window.ui.idleTime.value()
+            self.settings.punctuate = adv_window.ui.punctuate.value()
+            self.settings.fullSentence = adv_window.ui.fullSentence.isChecked()
+            self.settings.digits = adv_window.ui.digits.isChecked()
+            self.settings.useSeparator = adv_window.ui.useSeparator.isChecked()
+            self.settings.freeCommand = adv_window.ui.freecommand.text()
+
+            # Whisper Docker settings
+            self.settings.whisperModel = adv_window.ui.whisper_model_cb.currentText()
+            self.settings.whisperLanguage = adv_window.ui.whisper_language_le.text()
+            try:
+                self.settings.whisperPort = int(adv_window.ui.whisper_port_le.text())
+            except (ValueError, TypeError):
+                self.settings.whisperPort = 9000
+            try:
+                self.settings.whisperChunkDuration = float(adv_window.ui.whisper_chunk_le.text())
+            except (ValueError, TypeError):
+                self.settings.whisperChunkDuration = 5.0
+            try:
+                self.settings.whisperSampleRate = int(adv_window.ui.whisper_sample_rate_le.text())
+            except (ValueError, TypeError):
+                self.settings.whisperSampleRate = 16000
+            try:
+                self.settings.whisperChannels = int(adv_window.ui.whisper_channels_le.text())
+            except (ValueError, TypeError):
+                self.settings.whisperChannels = 1
+            self.settings.whisperVadEnabled = adv_window.ui.whisper_vad_cb.isChecked()
+            try:
+                self.settings.whisperVadThreshold = float(adv_window.ui.whisper_vad_threshold_le.text())
+            except (ValueError, TypeError):
+                self.settings.whisperVadThreshold = 500.0
+            self.settings.whisperAutoReconnect = adv_window.ui.whisper_auto_reconnect_cb.isChecked()
+
+            # Google Cloud Speech settings
+            self.settings.googleCloudCredentialsPath = adv_window.ui.gcs_credentials_le.text()
+            self.settings.googleCloudProjectId = adv_window.ui.gcs_project_id_le.text()
+            self.settings.googleCloudLanguageCode = adv_window.ui.gcs_language_code_le.text()
+            self.settings.googleCloudModel = adv_window.ui.gcs_model_le.text()
+            try:
+                self.settings.googleCloudSampleRate = int(adv_window.ui.gcs_sample_rate_le.text())
+            except (ValueError, TypeError):
+                self.settings.googleCloudSampleRate = 16000
+            try:
+                self.settings.googleCloudChannels = int(adv_window.ui.gcs_channels_le.text())
+            except (ValueError, TypeError):
+                self.settings.googleCloudChannels = 1
+            self.settings.googleCloudVadEnabled = adv_window.ui.gcs_vad_cb.isChecked()
+            try:
+                self.settings.googleCloudVadThreshold = float(adv_window.ui.gcs_vad_threshold_le.text())
+            except (ValueError, TypeError):
+                self.settings.googleCloudVadThreshold = 500.0
+
+            # OpenAI Realtime settings
+            self.settings.openaiApiKey = adv_window.ui.openai_api_key_le.text()
+            self.settings.openaiModel = adv_window.ui.openai_model_le.text()
+            self.settings.openaiApiVersion = adv_window.ui.openai_api_version_le.text()
+            try:
+                self.settings.openaiSampleRate = int(adv_window.ui.openai_sample_rate_le.text())
+            except (ValueError, TypeError):
+                self.settings.openaiSampleRate = 16000
+            try:
+                self.settings.openaiChannels = int(adv_window.ui.openai_channels_le.text())
+            except (ValueError, TypeError):
+                self.settings.openaiChannels = 1
+            self.settings.openaiVadEnabled = adv_window.ui.openai_vad_cb.isChecked()
+            try:
+                self.settings.openaiVadThreshold = float(adv_window.ui.openai_vad_threshold_le.text())
+            except (ValueError, TypeError):
+                self.settings.openaiVadThreshold = 0.5
+            try:
+                self.settings.openaiVadPrefixPaddingMs = int(adv_window.ui.openai_vad_prefix_le.text())
+            except (ValueError, TypeError):
+                self.settings.openaiVadPrefixPaddingMs = 300
+            try:
+                self.settings.openaiVadSilenceDurationMs = int(adv_window.ui.openai_vad_silence_le.text())
+            except (ValueError, TypeError):
+                self.settings.openaiVadSilenceDurationMs = 200
+            self.settings.openaiLanguage = adv_window.ui.openai_language_le.text()
+
+            # Shortcuts
+            self.settings.beginShortcut = adv_window.beginShortcut.keySequence().toString()
+            self.settings.endShortcut = adv_window.endShortcut.keySequence().toString()
+            self.settings.toggleShortcut = adv_window.toggleShortcut.keySequence().toString()
+            self.settings.suspendShortcut = adv_window.suspendShortcut.keySequence().toString()
+            self.settings.resumeShortcut = adv_window.resumeShortcut.keySequence().toString()
+
+            # STT Engine
+            self.settings.sttEngine = adv_window.ui.stt_engine_cb.currentText()
+
+            self.settings.save()
+            self.settings.load()
+            self._refresh_stt_engine()
+
     def config(self) -> None:
-        model, _ = self.currentModel()
-        dialog = ConfigPopup(os.path.basename(model))
-        dialog.exec()
-        if dialog.returnValue:
-            self.setModel(dialog.returnValue[0])
-        self.settings.load()
-        self.direct_click_enabled = self.settings.directClick
-        if model == "":
-            for entry in self.settings.models:
-                if entry.get("location"):
-                    model = entry.get("name", "")
-                    location = entry.get("location", "")
-                    break
+        self.show_config_dialog()
 
     def setModel(self, model: str) -> None:
         self.settings.setValue("Model/name", model)
