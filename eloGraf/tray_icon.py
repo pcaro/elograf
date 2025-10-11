@@ -368,6 +368,10 @@ class SystemTrayIcon(QSystemTrayIcon):
         self._run_postcommand_once()
         if failure:
             self._pending_engine_refresh = False
+            runner = getattr(self, "dictation_runner", None)
+            if getattr(runner, "fatal_error", False):
+                logging.error("STT engine reported unrecoverable error; check configuration")
+                return
             self._engine_failure_count += 1
             if self._engine_failure_count >= self._max_engine_retries:
                 logging.error(

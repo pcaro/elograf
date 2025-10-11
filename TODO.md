@@ -27,6 +27,7 @@ This document tracks potential improvements and features to implement in Elograf
 - [x] Refresh STT engine after saving advanced settings so changes apply without restarting
 - [x] Fix OpenAI Realtime session payload to include the selected model when connecting
 - [ ] Restore tray direct-click toggle behaviour or update the DirectClick setting/tests accordingly
+- [ ] Integrate faster-whisper + whisper-streaming as a realtime engine option
 
 ### STT Engine Research
 

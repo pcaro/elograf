@@ -155,6 +155,7 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
         )
         self._token_ttl = 3600
         self._session_active = False
+        self.fatal_error = False
 
     def start(self, command, env: Optional[Dict[str, str]] = None) -> bool:  # command unused
         if self.is_running():
@@ -177,6 +178,10 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
 
         token = self._generate_token()
         if not token:
+            if self.fatal_error:
+                logging.error("AssemblyAI realtime token request failed permanently; aborting start")
+            else:
+                logging.error("AssemblyAI realtime token request failed")
             self._controller.fail_to_start()
             return False
 
@@ -248,9 +253,15 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
             token = data.get("token")
             if not token:
                 logging.error("AssemblyAI realtime token response missing token")
+                self.fatal_error = True
             return token
         except requests.RequestException as exc:
-            logging.error("Failed to obtain AssemblyAI realtime token: %s", exc)
+            if getattr(exc, "response", None) is not None and exc.response.status_code == 401:
+                logging.error("AssemblyAI realtime token request unauthorized (check API key)")
+                self.fatal_error = True
+            else:
+                logging.error("Failed to obtain AssemblyAI realtime token: %s", exc)
+            self.fatal_error = True if getattr(exc, "response", None) is not None and exc.response.status_code == 401 else self.fatal_error
             return None
 
     def _on_open(self, ws) -> None:
