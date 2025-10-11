@@ -78,6 +78,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                 "model": self.settings.whisperModel,
                 "language": self.settings.whisperLanguage if self.settings.whisperLanguage else None,
                 "api_port": self.settings.whisperPort,
+                "chunk_duration": self.settings.whisperChunkDuration,
             }
 
         self.dictation_controller, self.dictation_runner = create_stt_engine(engine_type, **engine_kwargs)

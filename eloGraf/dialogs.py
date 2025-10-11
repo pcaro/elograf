@@ -553,6 +553,24 @@ class ConfigPopup(QDialog):
         adv_window.toggleShortcut.setKeySequence(self.settings.toggleShortcut)
         adv_window.suspendShortcut.setKeySequence(self.settings.suspendShortcut)
         adv_window.resumeShortcut.setKeySequence(self.settings.resumeShortcut)
+
+        # Set STT engine and Whisper settings
+        stt_engine_field = self._get_ui_attr(adv_window.ui, "stt_engine_cb")
+        if stt_engine_field:
+            stt_engine_field.setCurrentText(self.settings.sttEngine)
+        whisper_model_field = self._get_ui_attr(adv_window.ui, "whisper_model_cb")
+        if whisper_model_field:
+            whisper_model_field.setCurrentText(self.settings.whisperModel)
+        whisper_language_field = self._get_ui_attr(adv_window.ui, "whisper_language_le")
+        if whisper_language_field:
+            whisper_language_field.setText(self.settings.whisperLanguage)
+        whisper_port_field = self._get_ui_attr(adv_window.ui, "whisper_port_le")
+        if whisper_port_field:
+            whisper_port_field.setText(str(self.settings.whisperPort))
+        whisper_chunk_field = self._get_ui_attr(adv_window.ui, "whisper_chunk_le")
+        if whisper_chunk_field:
+            whisper_chunk_field.setText(str(self.settings.whisperChunkDuration))
+
         if adv_window.exec():
             pre_field = self._get_ui_attr(adv_window.ui, "precommand", "preCommand")
             self.settings.precommand = pre_field.text() if pre_field else ""
@@ -596,6 +614,30 @@ class ConfigPopup(QDialog):
             self.settings.toggleShortcut = adv_window.toggleShortcut.keySequence().toString()
             self.settings.suspendShortcut = adv_window.suspendShortcut.keySequence().toString()
             self.settings.resumeShortcut = adv_window.resumeShortcut.keySequence().toString()
+
+            # Read STT engine and Whisper settings
+            stt_engine_field = self._get_ui_attr(adv_window.ui, "stt_engine_cb")
+            if stt_engine_field:
+                self.settings.sttEngine = stt_engine_field.currentText()
+            whisper_model_field = self._get_ui_attr(adv_window.ui, "whisper_model_cb")
+            if whisper_model_field:
+                self.settings.whisperModel = whisper_model_field.currentText()
+            whisper_language_field = self._get_ui_attr(adv_window.ui, "whisper_language_le")
+            if whisper_language_field:
+                self.settings.whisperLanguage = whisper_language_field.text()
+            whisper_port_field = self._get_ui_attr(adv_window.ui, "whisper_port_le")
+            if whisper_port_field:
+                try:
+                    self.settings.whisperPort = int(whisper_port_field.text())
+                except (ValueError, TypeError):
+                    self.settings.whisperPort = 9000
+            whisper_chunk_field = self._get_ui_attr(adv_window.ui, "whisper_chunk_le")
+            if whisper_chunk_field:
+                try:
+                    self.settings.whisperChunkDuration = float(whisper_chunk_field.text())
+                except (ValueError, TypeError):
+                    self.settings.whisperChunkDuration = 5.0
+
             self.settings.save()
 
     def setModel(self, model: str) -> None:

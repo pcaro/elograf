@@ -120,6 +120,7 @@ class WhisperDockerProcessRunner(STTProcessRunner):
         api_port: int = 9000,
         model: str = "base",
         language: Optional[str] = None,
+        chunk_duration: float = 5.0,
         input_simulator: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._controller = controller
@@ -128,6 +129,7 @@ class WhisperDockerProcessRunner(STTProcessRunner):
         self._api_url = f"http://localhost:{api_port}/asr"
         self._model = model
         self._language = language
+        self._chunk_duration = chunk_duration
         self._input_simulator = input_simulator or self._default_input_simulator
         self._recording_thread: Optional[threading.Thread] = None
         self._stop_recording = threading.Event()
@@ -252,7 +254,7 @@ class WhisperDockerProcessRunner(STTProcessRunner):
 
             while not self._stop_recording.is_set():
                 # Record audio chunk
-                audio_data = self._audio_recorder.record_chunk(duration=5)
+                audio_data = self._audio_recorder.record_chunk(duration=self._chunk_duration)
 
                 if self._stop_recording.is_set():
                     break

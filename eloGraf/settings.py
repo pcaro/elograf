@@ -37,6 +37,7 @@ class Settings:
         self.whisperModel: str = "base"
         self.whisperLanguage: str = ""
         self.whisperPort: int = 9000
+        self.whisperChunkDuration: float = 5.0
 
     def load(self) -> None:
         backend = self._backend
@@ -64,6 +65,7 @@ class Settings:
         self.whisperModel = backend.value("WhisperModel", "base", type=str)
         self.whisperLanguage = backend.value("WhisperLanguage", "", type=str)
         self.whisperPort = backend.value("WhisperPort", 9000, type=int)
+        self.whisperChunkDuration = backend.value("WhisperChunkDuration", 5.0, type=float)
 
         self.models = []
         count = backend.beginReadArray("Models")
@@ -121,6 +123,10 @@ class Settings:
             backend.remove("WhisperPort")
         else:
             backend.setValue("WhisperPort", self.whisperPort)
+        if self.whisperChunkDuration == 5.0:
+            backend.remove("WhisperChunkDuration")
+        else:
+            backend.setValue("WhisperChunkDuration", self.whisperChunkDuration)
         if self.deviceName == "default":
             backend.remove("DeviceName")
         else:
