@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from subprocess import Popen, run, PIPE
+import json
 from zipfile import ZipFile
 from PyQt6.QtCore import QCoreApplication, QDir, QSize, Qt, QTimer
 from PyQt6.QtGui import QIcon, QStandardItem, QStandardItemModel
@@ -71,34 +72,90 @@ class Models(QStandardItemModel):
 def get_pulseaudio_sources() -> List[Tuple[str, str]]:
     """Get available PulseAudio source devices.
 
+    Tries JSON format first (newer pactl), then falls back to text parsing,
+    and finally to `pactl list sources short`.
+
     Returns:
         List of tuples (device_name, description)
     """
+    # Try JSON output for robust parsing
+    try:
+        result = run(["pactl", "-f", "json", "list", "sources"], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0 and result.stdout.strip():
+            try:
+                data = json.loads(result.stdout)
+                sources: List[Tuple[str, str]] = []
+                for src in data or []:
+                    name = src.get("name") or ""
+                    props = src.get("properties", {}) or {}
+                    desc = props.get("node.description") or props.get("device.description") or name
+                    if name:
+                        if name.endswith(".monitor") and "monitor" not in desc.lower():
+                            desc = f"{desc} (monitor)"
+                        sources.append((name, desc))
+                if sources:
+                    return sources
+            except json.JSONDecodeError:
+                pass
+    except Exception as exc:
+        logging.debug("pactl json parse failed: %s", exc)
+
+    # Fallback to text parsing of `pactl list sources`
     try:
         result = run(["pactl", "list", "sources"], capture_output=True, text=True, timeout=5)
-        if result.returncode != 0:
-            logging.debug("pactl command failed: %s", result.stderr)
-            return []
+        if result.returncode == 0 and result.stdout:
+            sources: List[Tuple[str, str]] = []
+            current_name: Optional[str] = None
+            current_desc: Optional[str] = None
+            props_mode = False
+            for raw in result.stdout.splitlines():
+                line = raw.strip()
+                if line.startswith("Source #"):
+                    if current_name and current_desc:
+                        if current_name.endswith(".monitor") and "monitor" not in current_desc.lower():
+                            current_desc = f"{current_desc} (monitor)"
+                        sources.append((current_name, current_desc))
+                    current_name, current_desc = None, None
+                    props_mode = False
+                elif line.startswith("Name:"):
+                    current_name = line.split(":", 1)[1].strip()
+                elif line.startswith("Description:"):
+                    current_desc = line.split(":", 1)[1].strip()
+                elif line.startswith("Properties:"):
+                    props_mode = True
+                elif props_mode and "node.description" in line and "=" in line and not current_desc:
+                    # node.description = "..."
+                    try:
+                        current_desc = line.split("=", 1)[1].strip().strip('"')
+                    except Exception:
+                        pass
+            if current_name and current_desc:
+                if current_name.endswith(".monitor") and "monitor" not in current_desc.lower():
+                    current_desc = f"{current_desc} (monitor)"
+                sources.append((current_name, current_desc))
+            if sources:
+                return sources
+    except Exception as exc:
+        logging.debug("pactl list sources parse failed: %s", exc)
 
-        sources = []
-        current_name = None
-        current_desc = None
+    # Last resort: short listing
+    try:
+        result = run(["pactl", "list", "sources", "short"], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0 and result.stdout:
+            sources: List[Tuple[str, str]] = []
+            for line in result.stdout.splitlines():
+                parts = line.split()  # index, name, driver, format, state
+                if len(parts) >= 2:
+                    name = parts[1]
+                    desc = name
+                    if name.endswith(".monitor") and "monitor" not in desc.lower():
+                        desc = f"{desc} (monitor)"
+                    sources.append((name, desc))
+            return sources
+    except Exception as exc:
+        logging.debug("pactl short parse failed: %s", exc)
 
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if line.startswith("Name:"):
-                current_name = line.split(":", 1)[1].strip()
-            elif line.startswith("Description:"):
-                current_desc = line.split(":", 1)[1].strip()
-                if current_name:
-                    sources.append((current_name, current_desc))
-                    current_name = None
-                    current_desc = None
-
-        return sources
-    except (FileNotFoundError, TimeoutError, Exception) as exc:
-        logging.debug("Could not get PulseAudio sources: %s", exc)
-        return []
+    return []
 
 
 class AdvancedUI(QDialog):

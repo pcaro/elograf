@@ -165,8 +165,8 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
             1,
             int(self._sample_rate * self._chunk_duration) * self._channels * self._sample_width_bytes,
         )
-        # ensure at least 100ms of audio per commit as required by API
-        min_commit_bytes = self._sample_rate * self._channels * self._sample_width_bytes // 10
+        # ensure at least 200ms of audio per commit to avoid server-side rounding issues
+        min_commit_bytes = (self._sample_rate * self._channels * self._sample_width_bytes) // 5
         if self._bytes_per_commit < min_commit_bytes:
             self._bytes_per_commit = min_commit_bytes
         self._response_active = False
