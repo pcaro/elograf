@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Dict, List, Optional
 
 from PyQt6.QtCore import QSettings
@@ -52,7 +53,7 @@ class Settings:
         self.googleCloudVadEnabled: bool = True
         self.googleCloudVadThreshold: float = 500.0
         self.openaiApiKey: str = ""
-        self.openaiModel: str = "gpt-4o-realtime-preview"
+        self.openaiModel: str = "gpt-4o-transcribe"
         self.openaiApiVersion: str = "2025-08-28"
         self.openaiSampleRate: int = 16000
         self.openaiChannels: int = 1
@@ -104,6 +105,12 @@ class Settings:
         self.googleCloudVadThreshold = backend.value("GoogleCloudVadThreshold", 500.0, type=float)
         self.openaiApiKey = backend.value("OpenaiApiKey", "", type=str)
         self.openaiModel = backend.value("OpenaiModel", "gpt-4o-realtime-preview", type=str)
+        if self.openaiModel == "gpt-4o-transcribe":
+            logging.info(
+                "Migrating OpenAI model from deprecated gpt-4o-transcribe to gpt-4o-realtime-preview"
+            )
+            self.openaiModel = "gpt-4o-realtime-preview"
+            backend.setValue("OpenaiModel", self.openaiModel)
         self.openaiApiVersion = backend.value("OpenaiApiVersion", "2025-08-28", type=str)
         self.openaiSampleRate = backend.value("OpenaiSampleRate", 16000, type=int)
         self.openaiChannels = backend.value("OpenaiChannels", 1, type=int)
@@ -211,7 +218,7 @@ class Settings:
         else:
             backend.setValue("GoogleCloudVadThreshold", self.googleCloudVadThreshold)
         self._set_or_remove("OpenaiApiKey", self.openaiApiKey)
-        if self.openaiModel == "gpt-4o-realtime-preview":
+        if self.openaiModel == "gpt-4o-transcribe":
             backend.remove("OpenaiModel")
         else:
             backend.setValue("OpenaiModel", self.openaiModel)
