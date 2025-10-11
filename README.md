@@ -1,8 +1,8 @@
 # Elograf
 
-**Voice recognition utility for nerd-dictation**
+**Multi-engine voice recognition utility**
 
-Elograf is a desktop application that provides a graphical interface for launching and configuring [nerd-dictation](https://github.com/ideasman42/nerd-dictation) for voice recognition. It runs in your system tray and offers easy control over dictation through an intuitive icon and menu system.
+Elograf is a desktop application that provides a graphical interface for multiple speech-to-text engines. Originally designed for [nerd-dictation](https://github.com/ideasman42/nerd-dictation), it now supports multiple STT backends including Whisper Docker, Google Cloud Speech, and OpenAI Realtime API. It runs in your system tray and offers easy control over dictation through an intuitive icon and menu system.
 
 ---
 
@@ -38,9 +38,118 @@ With PyQt6-DBus installed on KDE, configure system-wide shortcuts for:
 
 ---
 
+## Speech-to-Text Engines
+
+Elograf supports four different STT engines, each with unique strengths:
+
+### 1. **nerd-dictation** (Default)
+Local, privacy-focused CLI tool with multiple backend support.
+
+**Features:**
+- Fully offline operation
+- Multiple model support (Vosk, etc.)
+- Direct system integration
+- No API costs
+
+**Requirements:**
+- nerd-dictation installed separately
+- Vosk model files
+
+**Best for:** Privacy-conscious users, offline environments, no-cost operation
+
+### 2. **Whisper Docker**
+Docker container running OpenAI's Whisper ASR webservice.
+
+**Features:**
+- High accuracy transcription
+- Configurable models (tiny, base, small, medium, large-v3)
+- Voice Activity Detection (VAD)
+- Auto-reconnect on failures
+- Suspend/resume support
+- Configurable chunk duration
+
+**Requirements:**
+- Docker installed
+- Internet for first-time image download (~2GB)
+- Docker image: `onerahmet/openai-whisper-asr-webservice`
+
+**Configuration:**
+- Model: Choose size/accuracy tradeoff
+- Language: Auto-detect or specify
+- Port: API port (default: 9000)
+- Chunk Duration: Audio processing interval
+- VAD: Skip silent audio chunks
+
+**Best for:** High accuracy offline transcription, Docker-enabled systems
+
+### 3. **Google Cloud Speech-to-Text V2**
+Google's enterprise-grade speech recognition API with gRPC streaming.
+
+**Features:**
+- Real-time streaming recognition
+- State-of-the-art accuracy with Chirp 3 model
+- Multi-language support
+- Server-side VAD
+- Suspend/resume support
+- Automatic project detection
+
+**Requirements:**
+- Google Cloud account
+- Service account credentials JSON file
+- `google-cloud-speech` Python library
+- Project with Speech-to-Text API enabled
+
+**Configuration:**
+- Credentials Path: Path to service account JSON
+- Project ID: GCP project (auto-detected if empty)
+- Language Code: e.g., "en-US", "es-ES"
+- Model: chirp_3, latest_long, etc.
+
+**Best for:** Enterprise applications, multi-language support, maximum accuracy
+
+### 4. **OpenAI Realtime API**
+OpenAI's GPT-4o real-time transcription via WebSocket streaming.
+
+**Features:**
+- Ultra-low latency streaming
+- WebSocket bidirectional connection
+- Server-side VAD with configurable thresholds
+- Partial and final transcriptions
+- Model selection (full vs mini)
+- Suspend/resume support
+
+**Requirements:**
+- OpenAI API key
+- `websocket-client` Python library
+- Internet connection
+
+**Configuration:**
+- API Key: OpenAI API key (required)
+- Model: `gpt-4o-transcribe` (full) or `gpt-4o-mini-transcribe` (faster)
+- API Version: default "2025-08-28"
+- VAD Threshold: Sensitivity (0.0-1.0)
+- VAD Timing: Prefix padding and silence duration
+
+**Pricing:**
+- Input: $32/1M audio tokens ($0.40 cached)
+- Output: $64/1M audio tokens
+
+**Best for:** Real-time applications, minimal latency requirements, cloud-based workflows
+
+### Selecting an Engine
+
+Configure the STT engine in **Advanced Settings**:
+1. Open configuration from system tray menu
+2. Go to "Advanced" tab
+3. Select "STT Engine" from dropdown
+4. Configure engine-specific settings below
+5. Save and restart dictation
+
+---
+
 ## Installation
 
-### Method 1: Using `uv` (Recommended)
+### Using `uv` (Recommended)
 
 [uv](https://github.com/astral-sh/uv) is a fast Python package and project manager that handles dependencies automatically.
 
@@ -51,30 +160,40 @@ uv tool install git+https://github.com/papoteur-mga/elograf
 
 **For development:**
 ```bash
-uv pip install .
+# Clone the repository
+git clone https://github.com/papoteur-mga/elograf
+cd elograf
+
+# Install with all dependencies
+uv pip install -e .
 ```
 
-### Method 2: Using `pip`
-
-**System-wide (as root):**
+**Run without installing:**
 ```bash
-pip install .
+uv run elograf
 ```
-
-**User installation:**
-```bash
-pip install --user .
-```
-
-> ⚠️ **Note**: Ensure `~/.local/bin` is in your PATH for user installations.
 
 ### Requirements
+
+**Core Dependencies:**
 - Python 3.7+
 - PyQt6 (includes D-Bus support for KDE global shortcuts)
 - ujson
-- urllib
+- pyaudio (for audio recording)
+- vosk
 
-> ⚠️ **nerd-dictation** is not included and must be installed separately.
+**Engine-Specific Dependencies:**
+- **nerd-dictation**: Must be installed separately (not included)
+- **Whisper Docker**: `requests` (auto-installed), Docker
+- **Google Cloud Speech**: `google-cloud-speech` (auto-installed)
+- **OpenAI Realtime**: `websocket-client` (auto-installed)
+
+**All Python dependencies are automatically installed by `uv`:**
+```bash
+uv pip install -e .
+```
+
+This installs: `ujson`, `PyQt6`, `vosk`, `pyaudio`, `requests`, `google-cloud-speech`, and `websocket-client`.
 
 ---
 
@@ -124,16 +243,48 @@ The configuration dialog appears automatically if no model is set. Access it any
 - Store models in user (`~/.config/vosk-models`) or system space (`/usr/share/vosk-models`)
 
 #### Advanced Settings
+
+**General Settings:**
 - **Audio Device**: Select microphone from available PulseAudio sources
-- **Pre-command**: Run before nerd-dictation starts (e.g., `setxkbmap fr`)
-- **Post-command**: Run after nerd-dictation stops
+- **Pre-command**: Run before STT engine starts (e.g., `setxkbmap fr`)
+- **Post-command**: Run after STT engine stops
+- **Input Tool**: XDOTOOL (X11) or DOTOOL (Wayland)
+- **Keyboard Layout**: Required for DOTOOL (e.g., 'fr', 'de', 'us')
+- **Global Shortcuts**: KDE-only system-wide keyboard shortcuts
+
+**STT Engine Selection:**
+- **STT Engine**: Choose between nerd-dictation, whisper-docker, google-cloud-speech, or openai-realtime
+
+**nerd-dictation Settings:**
 - **Sample Rate**: Recording sample rate (default: 44100 Hz)
 - **Timeout**: Auto-stop after silence (0 disables)
 - **Idle Time**: CPU vs responsiveness trade-off (default: 100ms)
 - **Punctuation Timeout**: Add punctuation based on pause duration
-- **Input Tool**: XDOTOOL (X11) or DOTOOL (Wayland)
-- **Keyboard Layout**: Required for DOTOOL (e.g., 'fr', 'de', 'us')
-- **Global Shortcuts**: KDE-only system-wide keyboard shortcuts
+
+**Whisper Docker Settings:**
+- **Whisper Model**: Model size (tiny, base, small, medium, large-v3)
+- **Whisper Language**: Language code or auto-detect
+- **Whisper Port**: API port (default: 9000)
+- **Whisper Chunk Duration**: Audio processing interval (seconds)
+- **Whisper Sample Rate, Channels**: Audio quality settings
+- **Whisper VAD**: Voice activity detection to skip silence
+- **Whisper Auto-reconnect**: Retry on API failures
+
+**Google Cloud Speech Settings:**
+- **GCS Credentials Path**: Path to service account JSON
+- **GCS Project ID**: GCP project (auto-detected if empty)
+- **GCS Language Code**: e.g., "en-US", "es-ES"
+- **GCS Model**: chirp_3, latest_long, etc.
+- **GCS Sample Rate, Channels**: Audio quality settings
+- **GCS VAD**: Voice activity detection
+
+**OpenAI Realtime Settings:**
+- **OpenAI API Key**: Required for authentication
+- **OpenAI Model**: gpt-4o-transcribe or gpt-4o-mini-transcribe
+- **OpenAI API Version**: API version (default: 2025-08-28)
+- **OpenAI Sample Rate, Channels**: Audio quality settings
+- **OpenAI VAD**: Voice activity detection with threshold
+- **OpenAI VAD Timing**: Prefix padding and silence duration
 
 ---
 
@@ -186,6 +337,218 @@ The tray icon displays real-time dictation state:
 
 ---
 
+## Architecture
+
+### Abstract Interface Design
+
+Elograf uses an abstract interface pattern to support multiple STT engines through a common API:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     STT Engine Interface                      │
+│                    (stt_engine.py)                           │
+├─────────────────────────────────────────────────────────────┤
+│  STTController (ABC)          STTProcessRunner (ABC)        │
+│  ├─ add_state_listener()      ├─ start()                    │
+│  ├─ add_output_listener()     ├─ stop()                     │
+│  ├─ add_exit_listener()       ├─ suspend()                  │
+│  ├─ start()                   ├─ resume()                   │
+│  ├─ stop_requested()          ├─ poll()                     │
+│  ├─ suspend_requested()       └─ is_running()               │
+│  └─ resume_requested()                                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Implementation Hierarchy
+
+```
+STTController                    STTProcessRunner
+     │                                  │
+     ├── NerdDictationController        ├── NerdDictationProcessRunner
+     │   └── NerdDictationState         │   └── Manages nerd-dictation CLI
+     │                                  │
+     ├── WhisperDockerController        ├── WhisperDockerProcessRunner
+     │   └── WhisperDockerState         │   ├── Docker container management
+     │                                  │   ├── Audio recording (pyaudio)
+     │                                  │   ├── REST API client
+     │                                  │   └── Voice Activity Detection
+     │                                  │
+     ├── GoogleCloudSpeechController    ├── GoogleCloudSpeechProcessRunner
+     │   └── GoogleCloudSpeechState     │   ├── gRPC streaming client
+     │                                  │   ├── Audio recording (pyaudio)
+     │                                  │   └── Credentials management
+     │                                  │
+     └── OpenAIRealtimeController       └── OpenAIRealtimeProcessRunner
+         └── OpenAIRealtimeState            ├── WebSocket client
+                                            ├── Audio recording (pyaudio)
+                                            └── Real-time streaming
+```
+
+### Component Interaction Flow
+
+```
+┌──────────────┐
+│  SystemTray  │  User clicks icon / CLI command
+│     Icon     │
+└──────┬───────┘
+       │
+       ↓
+┌──────────────────┐
+│  STT Factory     │  create_stt_engine(engine_type, **kwargs)
+│  (stt_factory)   │  → Returns (Controller, Runner)
+└──────┬───────────┘
+       │
+       ↓
+┌──────────────────────────────────────────┐
+│     Controller        ←→      Runner     │
+│  ┌─────────────┐          ┌───────────┐ │
+│  │   States    │          │  Process  │ │
+│  │  Listeners  │          │  Control  │ │
+│  └──────┬──────┘          └─────┬─────┘ │
+│         │                        │       │
+│         └────── Events ──────────┘       │
+└──────────────────────────────────────────┘
+       │                        │
+       ↓                        ↓
+  State Updates          Audio/Transcription
+  (Icon changes)         (Text input simulation)
+```
+
+### State Machine
+
+Each engine implements its own state enum, but follows a common pattern:
+
+```
+IDLE
+  ↓
+STARTING  ──error──→  FAILED
+  ↓
+READY
+  ↓
+RECORDING  ←──resume──  SUSPENDED
+  ↓              ↑
+  └──suspend────┘
+  ↓
+TRANSCRIBING
+  ↓
+IDLE (on stop)
+```
+
+**State-specific behaviors:**
+- **IDLE**: No engine running
+- **STARTING**: Engine initialization
+- **READY**: Engine ready to record
+- **RECORDING**: Actively capturing audio
+- **TRANSCRIBING**: Processing audio (Whisper/Cloud only)
+- **SUSPENDED**: Paused, not recording
+- **FAILED**: Error occurred
+
+### Key Classes
+
+#### `stt_engine.py`
+Abstract base classes defining the interface contract:
+- **STTController**: State management and event notification
+- **STTProcessRunner**: Process lifecycle and audio handling
+
+#### `stt_factory.py`
+Factory functions for engine creation:
+- `create_stt_engine(engine_type, **kwargs)` → (Controller, Runner)
+- `get_available_engines()` → List of engine names
+- `is_engine_available(engine_type)` → bool
+
+#### Engine Implementations
+
+**`nerd_controller.py`**
+- Manages nerd-dictation subprocess
+- Parses stdout for state changes
+- Direct CLI integration
+
+**`whisper_docker_controller.py`**
+- Docker container lifecycle management
+- REST API communication (POST /asr)
+- Voice Activity Detection (VAD)
+- Automatic reconnection
+- Audio recording with pyaudio
+
+**`google_cloud_speech_controller.py`**
+- gRPC streaming client
+- Service account authentication
+- Audio chunk streaming
+- Project auto-detection
+
+**`openai_realtime_controller.py`**
+- WebSocket bidirectional streaming
+- Server-side VAD configuration
+- Real-time partial transcriptions
+- Base64 audio encoding
+
+#### `tray_icon.py`
+System tray interface that:
+1. Loads settings
+2. Creates appropriate STT engine via factory
+3. Connects to state/output/exit listeners
+4. Updates icon based on state
+5. Handles user interactions
+
+#### `settings.py`
+Persistent configuration using QSettings:
+- Core settings (device, shortcuts, etc.)
+- Engine-specific settings (grouped by prefix)
+- Load/save with defaults
+
+### Audio Recording
+
+All engines except nerd-dictation use a common `AudioRecorder` class:
+
+```python
+class AudioRecorder:
+    """Records audio chunks using pyaudio."""
+
+    def __init__(self, sample_rate: int, channels: int)
+    def record_chunk(self, duration: float) -> bytes  # Returns WAV
+```
+
+- Format: PCM16 (16-bit signed integer)
+- Configurable sample rate and channels
+- Returns WAV-formatted audio data
+
+### Text Input Simulation
+
+All engines use the same input simulation strategy:
+
+```python
+def _default_input_simulator(text: str):
+    try:
+        run(["dotool", "type", text])  # Wayland
+    except:
+        run(["xdotool", "type", "--", text])  # X11
+```
+
+### Configuration Storage
+
+Settings are stored per-engine with clear prefixes:
+
+```
+# Whisper Docker
+whisperModel, whisperLanguage, whisperPort,
+whisperChunkDuration, whisperSampleRate, whisperChannels,
+whisperVadEnabled, whisperVadThreshold, whisperAutoReconnect
+
+# Google Cloud Speech
+googleCloudCredentialsPath, googleCloudProjectId,
+googleCloudLanguageCode, googleCloudModel,
+googleCloudSampleRate, googleCloudChannels,
+googleCloudVadEnabled, googleCloudVadThreshold
+
+# OpenAI Realtime
+openaiApiKey, openaiModel, openaiApiVersion,
+openaiSampleRate, openaiChannels,
+openaiVadEnabled, openaiVadThreshold,
+openaiVadPrefixPaddingMs, openaiVadSilenceDurationMs
+```
+
+---
+
 ## Development
 
 ### Running Tests
@@ -196,13 +559,24 @@ uv run pytest
 ### Project Structure
 ```
 elograf/
-├── eloGraf/           # Main application code
-│   ├── dialogs.py     # Configuration and model dialogs
-│   ├── elograf.py     # Application entry point
-│   ├── tray_icon.py   # System tray interface
+├── eloGraf/                            # Main application code
+│   ├── stt_engine.py                   # Abstract STT interface (ABC)
+│   ├── stt_factory.py                  # Factory for creating engines
+│   ├── nerd_controller.py              # nerd-dictation implementation
+│   ├── whisper_docker_controller.py    # Whisper Docker implementation
+│   ├── google_cloud_speech_controller.py  # Google Cloud Speech implementation
+│   ├── openai_realtime_controller.py   # OpenAI Realtime implementation
+│   ├── tray_icon.py                    # System tray interface
+│   ├── settings.py                     # Persistent configuration
+│   ├── dialogs.py                      # Configuration dialogs
+│   ├── elograf.py                      # Application entry point
 │   └── ...
-├── tests/             # Test suite
-└── pyproject.toml     # Project configuration
+├── tests/                              # Test suite
+│   ├── test_nerd_controller.py
+│   ├── test_whisper_docker_controller.py
+│   ├── test_google_cloud_speech_controller.py
+│   └── test_openai_realtime_controller.py
+└── pyproject.toml                      # Project configuration
 ```
 
 ---
