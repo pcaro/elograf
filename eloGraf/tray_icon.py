@@ -59,6 +59,13 @@ class SystemTrayIcon(QSystemTrayIcon):
                 tooltip_lines.append(f"Language: {self.settings.openaiLanguage}")
             tooltip_lines.append(f"Sample Rate: {self.settings.openaiSampleRate}Hz")
             tooltip_lines.append(f"Channels: {self.settings.openaiChannels}")
+        elif engine == "assemblyai":
+            if getattr(self.settings, "assemblyModel", ""):
+                tooltip_lines.append(f"Model: {self.settings.assemblyModel}")
+            if getattr(self.settings, "assemblyLanguage", ""):
+                tooltip_lines.append(f"Language: {self.settings.assemblyLanguage}")
+            tooltip_lines.append(f"Sample Rate: {getattr(self.settings, 'assemblySampleRate', 16000)}Hz")
+            tooltip_lines.append(f"Channels: {getattr(self.settings, 'assemblyChannels', 1)}")
         tooltip = "\n".join(tooltip_lines)
         self.setToolTip(tooltip)
 
@@ -223,9 +230,16 @@ class SystemTrayIcon(QSystemTrayIcon):
                 "vad_threshold": self.settings.googleCloudVadThreshold,
             }
         if engine_type == "openai-realtime":
+            model = self.settings.openaiModel or "gpt-4o-realtime-preview"
+            if model != "gpt-4o-realtime-preview":
+                logging.warning(
+                    "OpenAI Realtime requires gpt-4o-realtime-preview; overriding configured value '%s'",
+                    model,
+                )
+                model = "gpt-4o-realtime-preview"
             return {
                 "api_key": self.settings.openaiApiKey,
-                "model": self.settings.openaiModel,
+                "model": model,
                 "api_version": self.settings.openaiApiVersion,
                 "sample_rate": self.settings.openaiSampleRate,
                 "channels": self.settings.openaiChannels,
@@ -234,6 +248,15 @@ class SystemTrayIcon(QSystemTrayIcon):
                 "vad_prefix_padding_ms": self.settings.openaiVadPrefixPaddingMs,
                 "vad_silence_duration_ms": self.settings.openaiVadSilenceDurationMs,
                 "language": self.settings.openaiLanguage,
+                "pulse_device": (self.settings.deviceName if self.settings.deviceName and self.settings.deviceName != "default" else None),
+            }
+        if engine_type == "assemblyai":
+            return {
+                "api_key": getattr(self.settings, "assemblyApiKey", ""),
+                "model": getattr(self.settings, "assemblyModel", "default"),
+                "language": getattr(self.settings, "assemblyLanguage", ""),
+                "sample_rate": getattr(self.settings, "assemblySampleRate", 16000),
+                "channels": getattr(self.settings, "assemblyChannels", 1),
                 "pulse_device": (self.settings.deviceName if self.settings.deviceName and self.settings.deviceName != "default" else None),
             }
         return {}
@@ -647,6 +670,14 @@ class SystemTrayIcon(QSystemTrayIcon):
         adv_window.ui.openai_vad_silence_le.setText(str(self.settings.openaiVadSilenceDurationMs))
         adv_window.ui.openai_language_le.setText(self.settings.openaiLanguage)
 
+        # AssemblyAI settings
+        if hasattr(adv_window.ui, "assembly_api_key_le"):
+            adv_window.ui.assembly_api_key_le.setText(getattr(self.settings, "assemblyApiKey", ""))
+            adv_window.ui.assembly_model_le.setText(getattr(self.settings, "assemblyModel", "default"))
+            adv_window.ui.assembly_language_le.setText(getattr(self.settings, "assemblyLanguage", ""))
+            adv_window.ui.assembly_sample_rate_le.setText(str(getattr(self.settings, "assemblySampleRate", 16000)))
+            adv_window.ui.assembly_channels_le.setText(str(getattr(self.settings, "assemblyChannels", 1)))
+
         # Shortcuts
         adv_window.beginShortcut.setKeySequence(self.settings.beginShortcut)
         adv_window.endShortcut.setKeySequence(self.settings.endShortcut)
@@ -753,6 +784,21 @@ class SystemTrayIcon(QSystemTrayIcon):
             except (ValueError, TypeError):
                 self.settings.openaiVadSilenceDurationMs = 200
             self.settings.openaiLanguage = adv_window.ui.openai_language_le.text()
+
+            # AssemblyAI settings
+            if hasattr(adv_window.ui, "assembly_api_key_le"):
+                self.settings.assemblyApiKey = adv_window.ui.assembly_api_key_le.text()
+                model_text = adv_window.ui.assembly_model_le.text().strip()
+                self.settings.assemblyModel = model_text or "default"
+                self.settings.assemblyLanguage = adv_window.ui.assembly_language_le.text().strip()
+                try:
+                    self.settings.assemblySampleRate = int(adv_window.ui.assembly_sample_rate_le.text())
+                except (ValueError, TypeError):
+                    self.settings.assemblySampleRate = 16000
+                try:
+                    self.settings.assemblyChannels = int(adv_window.ui.assembly_channels_le.text())
+                except (ValueError, TypeError):
+                    self.settings.assemblyChannels = 1
 
             # Shortcuts
             self.settings.beginShortcut = adv_window.beginShortcut.keySequence().toString()

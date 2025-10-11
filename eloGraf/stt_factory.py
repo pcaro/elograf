@@ -34,6 +34,8 @@ def create_stt_engine(
         return _create_google_cloud_speech_engine(**kwargs)
     elif engine_type == "openai-realtime":
         return _create_openai_realtime_engine(**kwargs)
+    elif engine_type == "assemblyai":
+        return _create_assemblyai_realtime_engine(**kwargs)
     else:
         raise ValueError(f"Unsupported STT engine type: {engine_type}")
 
@@ -88,6 +90,20 @@ def _create_openai_realtime_engine(**kwargs) -> Tuple[STTController, STTProcessR
     return controller, runner
 
 
+def _create_assemblyai_realtime_engine(**kwargs) -> Tuple[STTController, STTProcessRunner]:
+    """Create AssemblyAI Realtime controller and runner."""
+    from eloGraf.assemblyai_realtime_controller import (
+        AssemblyAIRealtimeController,
+        AssemblyAIRealtimeProcessRunner,
+    )
+
+    controller = AssemblyAIRealtimeController()
+    runner = AssemblyAIRealtimeProcessRunner(controller, **kwargs)
+
+    logging.info("Created AssemblyAI Realtime STT engine")
+    return controller, runner
+
+
 def get_available_engines() -> list[str]:
     """
     Get list of available STT engines.
@@ -95,7 +111,7 @@ def get_available_engines() -> list[str]:
     Returns:
         List of engine names
     """
-    return ["nerd-dictation", "whisper-docker", "google-cloud-speech", "openai-realtime"]
+    return ["nerd-dictation", "whisper-docker", "google-cloud-speech", "openai-realtime", "assemblyai"]
 
 
 def is_engine_available(engine_type: str) -> bool:
@@ -116,6 +132,8 @@ def is_engine_available(engine_type: str) -> bool:
         return _check_google_cloud_speech_available()
     elif engine_type == "openai-realtime":
         return _check_openai_realtime_available()
+    elif engine_type == "assemblyai":
+        return _check_assemblyai_available()
     else:
         return False
 
@@ -145,6 +163,16 @@ def _check_openai_realtime_available() -> bool:
     """Check if websocket-client library is installed."""
     try:
         import websocket
+        return True
+    except ImportError:
+        return False
+
+
+def _check_assemblyai_available() -> bool:
+    """Check if websocket-client and requests are installed."""
+    try:
+        import websocket  # noqa: F401
+        import requests  # noqa: F401
         return True
     except ImportError:
         return False

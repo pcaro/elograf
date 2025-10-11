@@ -28,10 +28,13 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QKeySequenceEdit,
     QLabel,
+    QGridLayout,
+    QLineEdit,
     QProgressBar,
     QPushButton,
     QSizePolicy,
     QTableView,
+    QWidget,
     QVBoxLayout,
 )
 
@@ -168,12 +171,16 @@ class AdvancedUI(QDialog):
         self.ui.punctuate.valueChanged.connect(self.punctuateChanged)
         self._add_shortcuts_config()
         self._populate_audio_devices()
+        self._add_assemblyai_tab()
+        if "assemblyai" not in [self.ui.stt_engine_cb.itemText(i) for i in range(self.ui.stt_engine_cb.count())]:
+            self.ui.stt_engine_cb.addItem("assemblyai")
 
         self.engine_tabs = {
             "nerd-dictation": self.ui.nerd_dictation_tab,
             "whisper-docker": self.ui.whisper_docker_tab,
             "google-cloud-speech": self.ui.google_cloud_tab,
             "openai-realtime": self.ui.openai_tab,
+            "assemblyai": self.ui.assemblyai_tab,
         }
 
         self.ui.stt_engine_cb.currentTextChanged.connect(self._on_stt_engine_changed)
@@ -236,6 +243,41 @@ class AdvancedUI(QDialog):
         self.resumeShortcut = QKeySequenceEdit()
         layout.addWidget(label_resume, row_count + 4, 0)
         layout.addWidget(self.resumeShortcut, row_count + 4, 1)
+
+    def _add_assemblyai_tab(self) -> None:
+        if hasattr(self.ui, "assemblyai_tab"):
+            return
+
+        assembly_tab = QWidget()
+        assembly_layout = QGridLayout(assembly_tab)
+
+        help_label = QLabel(self.tr("<i>These settings are only used when this engine is selected in the General tab.</i>"))
+        assembly_layout.addWidget(help_label, 0, 0, 1, 2)
+
+        self.ui.assembly_api_key_le = QLineEdit()
+        self.ui.assembly_model_le = QLineEdit()
+        self.ui.assembly_language_le = QLineEdit()
+        self.ui.assembly_sample_rate_le = QLineEdit()
+        self.ui.assembly_channels_le = QLineEdit()
+        self.ui.assembly_sample_rate_le.setText("16000")
+        self.ui.assembly_channels_le.setText("1")
+
+        fields = [
+            ("API Key", self.ui.assembly_api_key_le),
+            ("Model", self.ui.assembly_model_le),
+            ("Language", self.ui.assembly_language_le),
+            ("Sample Rate", self.ui.assembly_sample_rate_le),
+            ("Channels", self.ui.assembly_channels_le),
+        ]
+
+        for row, (label_text, widget) in enumerate(fields, start=1):
+            label = QLabel(self.tr(label_text))
+            assembly_layout.addWidget(label, row, 0)
+            assembly_layout.addWidget(widget, row, 1)
+
+        self.ui.assemblyai_tab = assembly_tab
+        idx = self.ui.tabWidget.addTab(assembly_tab, self.tr("AssemblyAI"))
+        self.ui.tabWidget.setTabEnabled(idx, False)
 
     def timeoutChanged(self, num: int) -> None:
         self.ui.timeoutDisplay.setText(str(num))

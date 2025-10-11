@@ -62,6 +62,11 @@ class Settings:
         self.openaiVadPrefixPaddingMs: int = 300
         self.openaiVadSilenceDurationMs: int = 200
         self.openaiLanguage: str = "en-US"
+        self.assemblyApiKey: str = ""
+        self.assemblyModel: str = "default"
+        self.assemblyLanguage: str = ""
+        self.assemblySampleRate: int = 16000
+        self.assemblyChannels: int = 1
 
     def load(self) -> None:
         backend = self._backend
@@ -113,6 +118,11 @@ class Settings:
         self.openaiVadPrefixPaddingMs = backend.value("OpenaiVadPrefixPaddingMs", 300, type=int)
         self.openaiVadSilenceDurationMs = backend.value("OpenaiVadSilenceDurationMs", 200, type=int)
         self.openaiLanguage = backend.value("OpenaiLanguage", "en-US", type=str)
+        self.assemblyApiKey = backend.value("AssemblyApiKey", "", type=str)
+        self.assemblyModel = backend.value("AssemblyModel", "default", type=str)
+        self.assemblyLanguage = backend.value("AssemblyLanguage", "", type=str)
+        self.assemblySampleRate = backend.value("AssemblySampleRate", 16000, type=int)
+        self.assemblyChannels = backend.value("AssemblyChannels", 1, type=int)
 
         self.models = []
         count = backend.beginReadArray("Models")
@@ -245,6 +255,20 @@ class Settings:
             backend.remove("OpenaiLanguage")
         else:
             backend.setValue("OpenaiLanguage", self.openaiLanguage)
+        self._set_or_remove("AssemblyApiKey", self.assemblyApiKey)
+        if self.assemblyModel == "default":
+            backend.remove("AssemblyModel")
+        else:
+            backend.setValue("AssemblyModel", self.assemblyModel)
+        self._set_or_remove("AssemblyLanguage", self.assemblyLanguage)
+        if self.assemblySampleRate == 16000:
+            backend.remove("AssemblySampleRate")
+        else:
+            backend.setValue("AssemblySampleRate", self.assemblySampleRate)
+        if self.assemblyChannels == 1:
+            backend.remove("AssemblyChannels")
+        else:
+            backend.setValue("AssemblyChannels", self.assemblyChannels)
         if self.deviceName == "default":
             backend.remove("DeviceName")
         else:
