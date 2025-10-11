@@ -190,16 +190,9 @@ class SystemTrayIcon(QSystemTrayIcon):
                 "vad_threshold": self.settings.googleCloudVadThreshold,
             }
         if engine_type == "openai-realtime":
-            model = self.settings.openaiModel or "gpt-4o-realtime-preview"
-            if model != "gpt-4o-realtime-preview":
-                logging.warning(
-                    "OpenAI Realtime requires gpt-4o-realtime-preview; overriding configured value '%s'",
-                    model,
-                )
-                model = "gpt-4o-realtime-preview"
             return {
                 "api_key": self.settings.openaiApiKey,
-                "model": model,
+                "model": self.settings.openaiModel,
                 "api_version": self.settings.openaiApiVersion,
                 "sample_rate": self.settings.openaiSampleRate,
                 "channels": self.settings.openaiChannels,
@@ -609,7 +602,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
         # OpenAI Realtime settings
         adv_window.ui.openai_api_key_le.setText(self.settings.openaiApiKey)
-        adv_window.ui.openai_model_le.setText(self.settings.openaiModel)
+        adv_window.ui.openai_model_cb.setCurrentText(self.settings.openaiModel)
         adv_window.ui.openai_api_version_le.setText(self.settings.openaiApiVersion)
         adv_window.ui.openai_sample_rate_le.setText(str(self.settings.openaiSampleRate))
         adv_window.ui.openai_channels_le.setText(str(self.settings.openaiChannels))
@@ -701,7 +694,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
             # OpenAI Realtime settings
             self.settings.openaiApiKey = adv_window.ui.openai_api_key_le.text()
-            self.settings.openaiModel = adv_window.ui.openai_model_le.text()
+            self.settings.openaiModel = adv_window.ui.openai_model_cb.currentText()
             self.settings.openaiApiVersion = adv_window.ui.openai_api_version_le.text()
             try:
                 self.settings.openaiSampleRate = int(adv_window.ui.openai_sample_rate_le.text())

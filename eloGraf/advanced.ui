@@ -690,7 +690,21 @@ This is also used to add either a comma or a full stop when dictation is perform
           </widget>
          </item>
          <item row="1" column="1">
-          <widget class="QLineEdit" name="openai_model_le"/>
+          <widget class="QComboBox" name="openai_model_cb">
+           <property name="currentText">
+            <string>gpt-4o-realtime-preview</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>gpt-4o-realtime-preview</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>gpt-4o-mini-realtime-preview</string>
+            </property>
+           </item>
+          </widget>
          </item>
          <item row="2" column="0">
           <widget class="QLabel" name="label_openai_language">

@@ -280,6 +280,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                 "threshold": self._vad_threshold,
                 "prefix_padding_ms": self._vad_prefix_padding_ms,
                 "silence_duration_ms": self._vad_silence_duration_ms,
+                "create_response": False,  # Don't create AI responses, just transcribe
             }
 
         transcription_model = "gpt-4o-transcribe"
@@ -296,11 +297,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         session_config = {
             "type": "session.update",
             "session": {
-                "input_audio_format": {
-                    "type": "pcm16",
-                    "sample_rate": self._sample_rate,
-                    "channels": self._channels,
-                },
+                "input_audio_format": "pcm16",
                 "input_audio_transcription": input_transcription,
             }
         }
@@ -308,12 +305,8 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         if turn_detection:
             session_config["session"]["turn_detection"] = turn_detection
 
-        # Send session configuration + start input buffer
+        # Send session configuration
         ws.send(json.dumps(session_config))
-        try:
-            ws.send(json.dumps({"type": "input_audio_buffer.start"}))
-        except Exception as exc:
-            logging.debug("input_audio_buffer.start failed (will continue): %s", exc)
 
         self._controller.set_ready()
 
@@ -327,21 +320,16 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
             data = json.loads(message)
             msg_type = data.get("type", "")
 
-            if msg_type.startswith("response"):
-                logging.debug("Realtime response event: %s", data)
-
-            if msg_type == "transcription.done":
-                # Final transcription
+            if msg_type == "conversation.item.input_audio_transcription.completed":
+                # Audio transcription completed
                 transcript = data.get("transcript", "").strip()
                 if transcript:
                     self._controller.handle_output(f"Transcribed: {transcript}")
                     self._input_simulator(transcript)
 
-            elif msg_type == "transcription.delta":
-                # Partial transcription (optional: log for debugging)
-                delta = data.get("delta", "")
-                if delta:
-                    logging.debug(f"Partial: {delta}")
+            elif msg_type == "conversation.item.input_audio_transcription.delta":
+                # Partial transcription
+                pass
 
             elif msg_type == "response.created":
                 response = data.get("response", {})
@@ -392,12 +380,14 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
     def _audio_loop(self) -> None:
         """Record and stream audio to WebSocket."""
         try:
+            logging.info(f"Starting audio loop with device: {self._pulse_device}")
             self._audio_recorder = AudioRecorder(
                 sample_rate=self._sample_rate,
                 channels=self._channels,
                 device=self._pulse_device,
             )
             self._controller.set_recording()
+            logging.info("Audio recording started successfully")
 
             while not self._stop_event.is_set():
                 # Check if suspended
@@ -424,6 +414,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                 # Send audio to WebSocket
                 self._audio_buffer.extend(raw_audio)
 
+                # Send audio to WebSocket - let server VAD handle segmentation
                 if len(self._audio_buffer) >= self._bytes_per_commit and self._ws:
                     chunk = bytes(self._audio_buffer[: self._bytes_per_commit])
                     del self._audio_buffer[: self._bytes_per_commit]
@@ -435,20 +426,6 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
 
                     try:
                         self._ws.send(json.dumps(audio_event))
-                        self._ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
-                        if not self._response_active:
-                            self._ws.send(
-                                json.dumps(
-                                    {
-                                        "type": "response.create",
-                                        "response": {
-                                            "modalities": ["text"],
-                                            "instructions": "Transcribe the incoming audio stream",
-                                        },
-                                    }
-                                )
-                            )
-                            self._response_active = True
                     except Exception as exc:
                         logging.error("Failed to send audio chunk: %s", exc)
 

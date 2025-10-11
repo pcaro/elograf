@@ -105,13 +105,6 @@ class Settings:
         self.googleCloudVadThreshold = backend.value("GoogleCloudVadThreshold", 500.0, type=float)
         self.openaiApiKey = backend.value("OpenaiApiKey", "", type=str)
         self.openaiModel = backend.value("OpenaiModel", "gpt-4o-realtime-preview", type=str)
-        if self.openaiModel in {"gpt-4o-transcribe", "gpt-4o-mini-transcribe"}:
-            logging.info(
-                "Migrating OpenAI model %s to gpt-4o-realtime-preview for realtime mode",
-                self.openaiModel,
-            )
-            self.openaiModel = "gpt-4o-realtime-preview"
-            backend.setValue("OpenaiModel", self.openaiModel)
         self.openaiApiVersion = backend.value("OpenaiApiVersion", "2025-08-28", type=str)
         self.openaiSampleRate = backend.value("OpenaiSampleRate", 16000, type=int)
         self.openaiChannels = backend.value("OpenaiChannels", 1, type=int)
