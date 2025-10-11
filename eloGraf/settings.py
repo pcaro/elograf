@@ -43,6 +43,14 @@ class Settings:
         self.whisperVadEnabled: bool = True
         self.whisperVadThreshold: float = 500.0
         self.whisperAutoReconnect: bool = True
+        self.googleCloudCredentialsPath: str = ""
+        self.googleCloudProjectId: str = ""
+        self.googleCloudLanguageCode: str = "en-US"
+        self.googleCloudModel: str = "chirp_3"
+        self.googleCloudSampleRate: int = 16000
+        self.googleCloudChannels: int = 1
+        self.googleCloudVadEnabled: bool = True
+        self.googleCloudVadThreshold: float = 500.0
 
     def load(self) -> None:
         backend = self._backend
@@ -76,6 +84,14 @@ class Settings:
         self.whisperVadEnabled = backend.value("WhisperVadEnabled", True, type=bool)
         self.whisperVadThreshold = backend.value("WhisperVadThreshold", 500.0, type=float)
         self.whisperAutoReconnect = backend.value("WhisperAutoReconnect", True, type=bool)
+        self.googleCloudCredentialsPath = backend.value("GoogleCloudCredentialsPath", "", type=str)
+        self.googleCloudProjectId = backend.value("GoogleCloudProjectId", "", type=str)
+        self.googleCloudLanguageCode = backend.value("GoogleCloudLanguageCode", "en-US", type=str)
+        self.googleCloudModel = backend.value("GoogleCloudModel", "chirp_3", type=str)
+        self.googleCloudSampleRate = backend.value("GoogleCloudSampleRate", 16000, type=int)
+        self.googleCloudChannels = backend.value("GoogleCloudChannels", 1, type=int)
+        self.googleCloudVadEnabled = backend.value("GoogleCloudVadEnabled", True, type=bool)
+        self.googleCloudVadThreshold = backend.value("GoogleCloudVadThreshold", 500.0, type=float)
 
         self.models = []
         count = backend.beginReadArray("Models")
@@ -151,6 +167,29 @@ class Settings:
         else:
             backend.setValue("WhisperVadThreshold", self.whisperVadThreshold)
         backend.setValue("WhisperAutoReconnect", int(self.whisperAutoReconnect))
+        self._set_or_remove("GoogleCloudCredentialsPath", self.googleCloudCredentialsPath)
+        self._set_or_remove("GoogleCloudProjectId", self.googleCloudProjectId)
+        if self.googleCloudLanguageCode == "en-US":
+            backend.remove("GoogleCloudLanguageCode")
+        else:
+            backend.setValue("GoogleCloudLanguageCode", self.googleCloudLanguageCode)
+        if self.googleCloudModel == "chirp_3":
+            backend.remove("GoogleCloudModel")
+        else:
+            backend.setValue("GoogleCloudModel", self.googleCloudModel)
+        if self.googleCloudSampleRate == 16000:
+            backend.remove("GoogleCloudSampleRate")
+        else:
+            backend.setValue("GoogleCloudSampleRate", self.googleCloudSampleRate)
+        if self.googleCloudChannels == 1:
+            backend.remove("GoogleCloudChannels")
+        else:
+            backend.setValue("GoogleCloudChannels", self.googleCloudChannels)
+        backend.setValue("GoogleCloudVadEnabled", int(self.googleCloudVadEnabled))
+        if self.googleCloudVadThreshold == 500.0:
+            backend.remove("GoogleCloudVadThreshold")
+        else:
+            backend.setValue("GoogleCloudVadThreshold", self.googleCloudVadThreshold)
         if self.deviceName == "default":
             backend.remove("DeviceName")
         else:

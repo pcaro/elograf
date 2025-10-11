@@ -23,6 +23,7 @@ dependencies = [
     "vosk",
     "pyaudio",
     "requests",
+    "google-cloud-speech",
 ]
 
 [project.urls]

@@ -14,6 +14,7 @@ from eloGraf.stt_engine import STTController, STTProcessRunner
 from eloGraf.stt_factory import create_stt_engine
 from eloGraf.nerd_controller import NerdDictationState
 from eloGraf.whisper_docker_controller import WhisperDockerState
+from eloGraf.google_cloud_speech_controller import GoogleCloudSpeechState
 from eloGraf.settings import DEFAULT_RATE, Settings
 from eloGraf.pidfile import remove_pid_file
 from eloGraf.state_machine import DictationStateMachine, IconState
@@ -84,6 +85,17 @@ class SystemTrayIcon(QSystemTrayIcon):
                 "vad_enabled": self.settings.whisperVadEnabled,
                 "vad_threshold": self.settings.whisperVadThreshold,
                 "auto_reconnect": self.settings.whisperAutoReconnect,
+            }
+        elif engine_type == "google-cloud-speech":
+            engine_kwargs = {
+                "credentials_path": self.settings.googleCloudCredentialsPath if self.settings.googleCloudCredentialsPath else None,
+                "project_id": self.settings.googleCloudProjectId if self.settings.googleCloudProjectId else None,
+                "language_code": self.settings.googleCloudLanguageCode,
+                "model": self.settings.googleCloudModel,
+                "sample_rate": self.settings.googleCloudSampleRate,
+                "channels": self.settings.googleCloudChannels,
+                "vad_enabled": self.settings.googleCloudVadEnabled,
+                "vad_threshold": self.settings.googleCloudVadThreshold,
             }
 
         self.dictation_controller, self.dictation_runner = create_stt_engine(engine_type, **engine_kwargs)

@@ -17,7 +17,7 @@ def create_stt_engine(
     Create an STT controller and runner for the specified engine type.
 
     Args:
-        engine_type: Type of STT engine ("nerd-dictation" or "whisper-docker")
+        engine_type: Type of STT engine ("nerd-dictation", "whisper-docker", or "google-cloud-speech")
         **kwargs: Additional engine-specific configuration
 
     Returns:
@@ -30,6 +30,8 @@ def create_stt_engine(
         return _create_nerd_dictation_engine(**kwargs)
     elif engine_type == "whisper-docker":
         return _create_whisper_docker_engine(**kwargs)
+    elif engine_type == "google-cloud-speech":
+        return _create_google_cloud_speech_engine(**kwargs)
     else:
         raise ValueError(f"Unsupported STT engine type: {engine_type}")
 
@@ -56,6 +58,20 @@ def _create_whisper_docker_engine(**kwargs) -> Tuple[STTController, STTProcessRu
     return controller, runner
 
 
+def _create_google_cloud_speech_engine(**kwargs) -> Tuple[STTController, STTProcessRunner]:
+    """Create Google Cloud Speech controller and runner."""
+    from eloGraf.google_cloud_speech_controller import (
+        GoogleCloudSpeechController,
+        GoogleCloudSpeechProcessRunner
+    )
+
+    controller = GoogleCloudSpeechController()
+    runner = GoogleCloudSpeechProcessRunner(controller, **kwargs)
+
+    logging.info("Created Google Cloud Speech STT engine")
+    return controller, runner
+
+
 def get_available_engines() -> list[str]:
     """
     Get list of available STT engines.
@@ -63,7 +79,7 @@ def get_available_engines() -> list[str]:
     Returns:
         List of engine names
     """
-    return ["nerd-dictation", "whisper-docker"]
+    return ["nerd-dictation", "whisper-docker", "google-cloud-speech"]
 
 
 def is_engine_available(engine_type: str) -> bool:
@@ -80,6 +96,8 @@ def is_engine_available(engine_type: str) -> bool:
         return _check_nerd_dictation_available()
     elif engine_type == "whisper-docker":
         return _check_docker_available()
+    elif engine_type == "google-cloud-speech":
+        return _check_google_cloud_speech_available()
     else:
         return False
 
@@ -94,3 +112,12 @@ def _check_docker_available() -> bool:
     """Check if Docker is available."""
     import shutil
     return shutil.which("docker") is not None
+
+
+def _check_google_cloud_speech_available() -> bool:
+    """Check if google-cloud-speech library is installed."""
+    try:
+        import google.cloud.speech_v2
+        return True
+    except ImportError:
+        return False
