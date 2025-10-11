@@ -26,10 +26,40 @@ class SystemTrayIcon(QSystemTrayIcon):
     """Tray icon controller with model-aware tooltip."""
 
     def _update_tooltip(self) -> None:
-        name, _ = self.currentModel()
-        tooltip = "EloGraf"
-        if name:
-            tooltip += f"\nModel: {name}"
+        tooltip_lines = ["EloGraf"]
+        engine = self.temporary_engine if getattr(self, 'temporary_engine', None) else self.settings.sttEngine
+        tooltip_lines.append(f"Engine: {engine}")
+
+        if engine == "nerd-dictation":
+            name, location = self.currentModel()
+            if name:
+                tooltip_lines.append(f"Model: {name}")
+            if location:
+                tooltip_lines.append(f"Path: {location}")
+            tooltip_lines.append(f"Sample Rate: {self.settings.sampleRate}")
+            tooltip_lines.append(f"Device: {self.settings.deviceName or 'default'}")
+        elif engine == "whisper-docker":
+            tooltip_lines.append(f"Model: {self.settings.whisperModel}")
+            if self.settings.whisperLanguage:
+                tooltip_lines.append(f"Language: {self.settings.whisperLanguage}")
+            tooltip_lines.append(f"API Port: {self.settings.whisperPort}")
+            tooltip_lines.append(f"Chunk: {self.settings.whisperChunkDuration}s @ {self.settings.whisperSampleRate}Hz")
+            tooltip_lines.append(f"Channels: {self.settings.whisperChannels}")
+        elif engine == "google-cloud-speech":
+            if self.settings.googleCloudProjectId:
+                tooltip_lines.append(f"Project: {self.settings.googleCloudProjectId}")
+            if self.settings.googleCloudModel:
+                tooltip_lines.append(f"Model: {self.settings.googleCloudModel}")
+            tooltip_lines.append(f"Language: {self.settings.googleCloudLanguageCode}")
+            tooltip_lines.append(f"Sample Rate: {self.settings.googleCloudSampleRate}")
+        elif engine == "openai-realtime":
+            if self.settings.openaiModel:
+                tooltip_lines.append(f"Session Model: {self.settings.openaiModel}")
+            if self.settings.openaiLanguage:
+                tooltip_lines.append(f"Language: {self.settings.openaiLanguage}")
+            tooltip_lines.append(f"Sample Rate: {self.settings.openaiSampleRate}Hz")
+            tooltip_lines.append(f"Channels: {self.settings.openaiChannels}")
+        tooltip = "\n".join(tooltip_lines)
         self.setToolTip(tooltip)
 
     def __init__(self, icon: QIcon, start: bool, ipc: IPCManager, parent=None, temporary_engine: str = None) -> None:
@@ -749,6 +779,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                     self.activated.connect(self.commute)
 
             self._refresh_stt_engine()
+            self._update_tooltip()
 
     def config(self) -> None:
         self.show_config_dialog()
