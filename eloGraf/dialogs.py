@@ -127,7 +127,12 @@ class AdvancedUI(QDialog):
             self.ui.tabWidget.setCurrentWidget(self.engine_tabs[engine])
 
     def manage_models(self) -> None:
-        model, _ = Settings().current_model()
+        settings = Settings()
+        try:
+            settings.load()
+        except Exception as exc:
+            logging.warning("Failed to load settings before opening model manager: %s", exc)
+        model, _ = settings.current_model()
         dialog = ConfigPopup(model)
         dialog.exec()
 
