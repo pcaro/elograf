@@ -38,6 +38,11 @@ class Settings:
         self.whisperLanguage: str = ""
         self.whisperPort: int = 9000
         self.whisperChunkDuration: float = 5.0
+        self.whisperSampleRate: int = 16000
+        self.whisperChannels: int = 1
+        self.whisperVadEnabled: bool = True
+        self.whisperVadThreshold: float = 500.0
+        self.whisperAutoReconnect: bool = True
 
     def load(self) -> None:
         backend = self._backend
@@ -66,6 +71,11 @@ class Settings:
         self.whisperLanguage = backend.value("WhisperLanguage", "", type=str)
         self.whisperPort = backend.value("WhisperPort", 9000, type=int)
         self.whisperChunkDuration = backend.value("WhisperChunkDuration", 5.0, type=float)
+        self.whisperSampleRate = backend.value("WhisperSampleRate", 16000, type=int)
+        self.whisperChannels = backend.value("WhisperChannels", 1, type=int)
+        self.whisperVadEnabled = backend.value("WhisperVadEnabled", True, type=bool)
+        self.whisperVadThreshold = backend.value("WhisperVadThreshold", 500.0, type=float)
+        self.whisperAutoReconnect = backend.value("WhisperAutoReconnect", True, type=bool)
 
         self.models = []
         count = backend.beginReadArray("Models")
@@ -127,6 +137,20 @@ class Settings:
             backend.remove("WhisperChunkDuration")
         else:
             backend.setValue("WhisperChunkDuration", self.whisperChunkDuration)
+        if self.whisperSampleRate == 16000:
+            backend.remove("WhisperSampleRate")
+        else:
+            backend.setValue("WhisperSampleRate", self.whisperSampleRate)
+        if self.whisperChannels == 1:
+            backend.remove("WhisperChannels")
+        else:
+            backend.setValue("WhisperChannels", self.whisperChannels)
+        backend.setValue("WhisperVadEnabled", int(self.whisperVadEnabled))
+        if self.whisperVadThreshold == 500.0:
+            backend.remove("WhisperVadThreshold")
+        else:
+            backend.setValue("WhisperVadThreshold", self.whisperVadThreshold)
+        backend.setValue("WhisperAutoReconnect", int(self.whisperAutoReconnect))
         if self.deviceName == "default":
             backend.remove("DeviceName")
         else:

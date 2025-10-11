@@ -21,6 +21,8 @@ dependencies = [
     "ujson",
     "PyQt6",
     "vosk",
+    "pyaudio",
+    "requests",
 ]
 
 [project.urls]

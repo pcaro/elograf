@@ -24,6 +24,7 @@ class WhisperDockerState(Enum):
     READY = auto()
     RECORDING = auto()
     TRANSCRIBING = auto()
+    SUSPENDED = auto()
     FAILED = auto()
 
 
@@ -41,6 +42,7 @@ class WhisperDockerController(STTController):
         self._output_listeners: List[OutputListener] = []
         self._exit_listeners: List[ExitListener] = []
         self._stop_requested = False
+        self._suspended = False
 
     @property
     def state(self) -> WhisperDockerState:
@@ -63,10 +65,16 @@ class WhisperDockerController(STTController):
         self._stop_requested = True
 
     def suspend_requested(self) -> None:
-        logging.warning("Suspend not supported by Whisper Docker engine")
+        self._suspended = True
+        self._set_state(WhisperDockerState.SUSPENDED)
 
     def resume_requested(self) -> None:
-        logging.warning("Resume not supported by Whisper Docker engine")
+        self._suspended = False
+        self._set_state(WhisperDockerState.RECORDING)
+
+    @property
+    def is_suspended(self) -> bool:
+        return self._suspended
 
     def fail_to_start(self) -> None:
         self._stop_requested = False
@@ -121,6 +129,11 @@ class WhisperDockerProcessRunner(STTProcessRunner):
         model: str = "base",
         language: Optional[str] = None,
         chunk_duration: float = 5.0,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        vad_enabled: bool = True,
+        vad_threshold: float = 500.0,
+        auto_reconnect: bool = True,
         input_simulator: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._controller = controller
@@ -130,6 +143,11 @@ class WhisperDockerProcessRunner(STTProcessRunner):
         self._model = model
         self._language = language
         self._chunk_duration = chunk_duration
+        self._sample_rate = sample_rate
+        self._channels = channels
+        self._vad_enabled = vad_enabled
+        self._vad_threshold = vad_threshold
+        self._auto_reconnect = auto_reconnect
         self._input_simulator = input_simulator or self._default_input_simulator
         self._recording_thread: Optional[threading.Thread] = None
         self._stop_recording = threading.Event()
@@ -176,10 +194,12 @@ class WhisperDockerProcessRunner(STTProcessRunner):
         self._controller.handle_exit(0)
 
     def suspend(self) -> None:
-        logging.warning("Suspend not supported by Whisper Docker engine")
+        if self.is_running():
+            self._controller.suspend_requested()
 
     def resume(self) -> None:
-        logging.warning("Resume not supported by Whisper Docker engine")
+        if self.is_running():
+            self._controller.resume_requested()
 
     def poll(self) -> None:
         # Whisper Docker uses background threads, no polling needed
@@ -249,15 +269,34 @@ class WhisperDockerProcessRunner(STTProcessRunner):
 
     def _recording_loop(self) -> None:
         try:
-            self._audio_recorder = AudioRecorder()
+            self._audio_recorder = AudioRecorder(
+                sample_rate=self._sample_rate,
+                channels=self._channels
+            )
             self._controller.set_recording()
 
             while not self._stop_recording.is_set():
+                # Check if suspended
+                if self._controller.is_suspended:
+                    time.sleep(0.1)
+                    continue
+
                 # Record audio chunk
                 audio_data = self._audio_recorder.record_chunk(duration=self._chunk_duration)
 
                 if self._stop_recording.is_set():
                     break
+
+                # Check if suspended again (might have changed during recording)
+                if self._controller.is_suspended:
+                    continue
+
+                # Apply VAD if enabled
+                if self._vad_enabled:
+                    audio_level = self._calculate_audio_level(audio_data)
+                    if audio_level < self._vad_threshold:
+                        # Silent audio, skip transcription
+                        continue
 
                 # Transcribe chunk
                 self._controller.set_transcribing()
@@ -273,32 +312,69 @@ class WhisperDockerProcessRunner(STTProcessRunner):
             logging.error(f"Recording loop error: {exc}")
             self._controller.handle_exit(1)
 
-    def _transcribe_audio(self, audio_data: bytes) -> str:
+    def _calculate_audio_level(self, audio_data: bytes) -> float:
+        """Calculate RMS audio level from WAV data."""
+        import wave
+        import struct
+
         try:
-            # Save audio to temporary file
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
-                tmp_file.write(audio_data)
-                tmp_path = tmp_file.name
+            # Parse WAV data
+            wav_buffer = io.BytesIO(audio_data)
+            with wave.open(wav_buffer, 'rb') as wav_file:
+                frames = wav_file.readframes(wav_file.getnframes())
 
-            try:
-                # Send to Whisper API
-                with open(tmp_path, "rb") as audio_file:
-                    files = {"audio_file": audio_file}
-                    params = {"output": "json"}
-                    if self._language:
-                        params["language"] = self._language
-
-                    response = requests.post(self._api_url, files=files, params=params, timeout=30)
-                    response.raise_for_status()
-
-                    result = response.json()
-                    return result.get("text", "").strip()
-            finally:
-                Path(tmp_path).unlink(missing_ok=True)
-
+            # Calculate RMS
+            sample_width = 2  # 16-bit audio
+            samples = struct.unpack(f'<{len(frames) // sample_width}h', frames)
+            rms = (sum(s ** 2 for s in samples) / len(samples)) ** 0.5
+            return rms
         except Exception as exc:
-            logging.error(f"Transcription error: {exc}")
-            return ""
+            logging.warning(f"Error calculating audio level: {exc}")
+            return float('inf')  # Return high value to pass VAD on error
+
+    def _transcribe_audio(self, audio_data: bytes) -> str:
+        max_retries = 3 if self._auto_reconnect else 1
+
+        for attempt in range(max_retries):
+            try:
+                # Save audio to temporary file
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
+                    tmp_file.write(audio_data)
+                    tmp_path = tmp_file.name
+
+                try:
+                    # Send to Whisper API
+                    with open(tmp_path, "rb") as audio_file:
+                        files = {"audio_file": audio_file}
+                        params = {"output": "json"}
+                        if self._language:
+                            params["language"] = self._language
+
+                        response = requests.post(self._api_url, files=files, params=params, timeout=30)
+                        response.raise_for_status()
+
+                        result = response.json()
+                        return result.get("text", "").strip()
+                finally:
+                    Path(tmp_path).unlink(missing_ok=True)
+
+            except requests.RequestException as exc:
+                if attempt < max_retries - 1:
+                    logging.warning(f"Transcription attempt {attempt + 1} failed: {exc}. Retrying...")
+                    time.sleep(1)
+
+                    # Try to restart container if it's not running
+                    if not self._is_container_running():
+                        logging.info("Container not running, attempting restart...")
+                        if self._start_container() and self._wait_for_api():
+                            continue
+                else:
+                    logging.error(f"Transcription failed after {max_retries} attempts: {exc}")
+            except Exception as exc:
+                logging.error(f"Transcription error: {exc}")
+                break
+
+        return ""
 
     @staticmethod
     def _default_input_simulator(text: str) -> None:

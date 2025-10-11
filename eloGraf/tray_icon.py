@@ -79,6 +79,11 @@ class SystemTrayIcon(QSystemTrayIcon):
                 "language": self.settings.whisperLanguage if self.settings.whisperLanguage else None,
                 "api_port": self.settings.whisperPort,
                 "chunk_duration": self.settings.whisperChunkDuration,
+                "sample_rate": self.settings.whisperSampleRate,
+                "channels": self.settings.whisperChannels,
+                "vad_enabled": self.settings.whisperVadEnabled,
+                "vad_threshold": self.settings.whisperVadThreshold,
+                "auto_reconnect": self.settings.whisperAutoReconnect,
             }
 
         self.dictation_controller, self.dictation_runner = create_stt_engine(engine_type, **engine_kwargs)
