@@ -10,7 +10,9 @@ import threading
 import time
 import base64
 from enum import Enum, auto
-from subprocess import run, CalledProcessError
+from subprocess import run, CalledProcessError, PIPE, Popen
+import subprocess
+import shutil
 from typing import Callable, Dict, List, Optional, Sequence
 
 from eloGraf.stt_engine import STTController, STTProcessRunner
@@ -156,6 +158,19 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         self._stop_event = threading.Event()
         self._ws = None
         self._audio_recorder: Optional[AudioRecorder] = None
+        self._audio_buffer = bytearray()
+        self._sample_width_bytes = 2  # matches s16le
+        self._bytes_per_commit = max(
+            1,
+            int(self._sample_rate * self._chunk_duration) * self._channels * self._sample_width_bytes,
+        )
+        # ensure at least 100ms of audio per commit as required by API
+        min_commit_bytes = self._sample_rate * self._channels * self._sample_width_bytes // 10
+        if self._bytes_per_commit < min_commit_bytes:
+            self._bytes_per_commit = min_commit_bytes
+        self._response_active = False
+        self._current_response_id: Optional[str] = None
+        self._current_transcript: List[str] = []
 
     def start(self, command: Sequence[str], env: Optional[Dict[str, str]] = None) -> bool:
         if self.is_running():
@@ -265,13 +280,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                 "silence_duration_ms": self._vad_silence_duration_ms,
             }
 
-        transcription_model = self._model
-        if transcription_model not in {"whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"}:
-            logging.debug(
-                "OpenAI realtime model %s does not support direct transcription; falling back to gpt-4o-mini-transcribe",
-                transcription_model,
-            )
-            transcription_model = "gpt-4o-mini-transcribe"
+        transcription_model = "gpt-4o-transcribe"
 
         input_transcription: Dict[str, str] = {"model": transcription_model}
         if self._language:
@@ -308,6 +317,9 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
             data = json.loads(message)
             msg_type = data.get("type", "")
 
+            if msg_type.startswith("response"):
+                logging.debug("Realtime response event: %s", data)
+
             if msg_type == "transcription.done":
                 # Final transcription
                 transcript = data.get("transcript", "").strip()
@@ -320,6 +332,35 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                 delta = data.get("delta", "")
                 if delta:
                     logging.debug(f"Partial: {delta}")
+
+            elif msg_type == "response.created":
+                response = data.get("response", {})
+                self._current_response_id = response.get("id")
+                self._response_active = True
+                self._current_transcript.clear()
+
+            elif msg_type in {"response.completed", "response.errored", "response.refused", "response.cancelled"}:
+                response = data.get("response", {})
+                response_id = response.get("id")
+                if not response_id and "response" in data:
+                    response_id = data["response"].get("id")
+                if not response_id:
+                    response_id = data.get("response_id")
+                if not response_id and self._current_response_id:
+                    response_id = self._current_response_id
+                if self._current_transcript and response_id == self._current_response_id:
+                    final_text = "".join(self._current_transcript).strip()
+                    if final_text:
+                        self._controller.handle_output(final_text)
+                        self._input_simulator(final_text)
+                self._response_active = False
+                self._current_response_id = None
+                self._current_transcript.clear()
+
+            elif msg_type == "response.output_text.delta":
+                delta = data.get("delta")
+                if isinstance(delta, str):
+                    self._current_transcript.append(delta)
 
             elif msg_type == "error":
                 error = data.get("error", {})
@@ -370,13 +411,35 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                 audio_b64 = base64.b64encode(raw_audio).decode('utf-8')
 
                 # Send audio to WebSocket
-                audio_event = {
-                    "type": "input_audio_buffer.append",
-                    "audio": audio_b64,
-                }
+                self._audio_buffer.extend(raw_audio)
 
-                if self._ws:
-                    self._ws.send(json.dumps(audio_event))
+                if len(self._audio_buffer) >= self._bytes_per_commit and self._ws:
+                    chunk = bytes(self._audio_buffer[: self._bytes_per_commit])
+                    del self._audio_buffer[: self._bytes_per_commit]
+
+                    audio_event = {
+                        "type": "input_audio_buffer.append",
+                        "audio": base64.b64encode(chunk).decode("utf-8"),
+                    }
+
+                    try:
+                        self._ws.send(json.dumps(audio_event))
+                        self._ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+                        if not self._response_active:
+                            self._ws.send(
+                                json.dumps(
+                                    {
+                                        "type": "response.create",
+                                        "response": {
+                                            "modalities": ["text"],
+                                            "instructions": "Transcribe the incoming audio stream",
+                                        },
+                                    }
+                                )
+                            )
+                            self._response_active = True
+                    except Exception as exc:
+                        logging.error("Failed to send audio chunk: %s", exc)
 
         except Exception as exc:
             logging.error(f"Audio loop error: {exc}")
@@ -401,52 +464,85 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
 
 
 class AudioRecorder:
-    """Records audio chunks from the microphone using pyaudio."""
+    """Records audio chunks from the microphone using PulseAudio's parec."""
 
-    def __init__(self, sample_rate: int = 16000, channels: int = 1):
-        try:
-            import pyaudio
-            import wave
-        except ImportError:
-            raise RuntimeError("pyaudio is required for audio recording. Install with: pip install pyaudio")
+    def __init__(self, sample_rate: int = 16000, channels: int = 1, device: Optional[str] = None):
+        if shutil.which("parec") is None:
+            raise RuntimeError("parec is required for audio capture. Install pulseaudio-utils or ensure parec is available.")
 
         self._sample_rate = sample_rate
         self._channels = channels
-        self._pyaudio = pyaudio.PyAudio()
-        self._format = pyaudio.paInt16
+        self._sample_width = 2  # s16le
+        self._device = device
+        self._parec_process: Optional[Popen] = None
+        self._start_parec()
+
+    def _start_parec(self) -> None:
+        command = [
+            "parec",
+            "--format=s16le",
+            f"--rate={self._sample_rate}",
+            f"--channels={self._channels}",
+        ]
+
+        if self._device:
+            command.append(f"--device={self._device}")
+
+        try:
+            self._parec_process = Popen(
+                command,
+                stdout=PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError as exc:
+            raise RuntimeError(f"Failed to start parec: {exc}") from exc
+
+        if not self._parec_process.stdout:
+            raise RuntimeError("parec process has no stdout stream")
+
+    def _read_bytes(self, size: int) -> bytes:
+        if not self._parec_process or self._parec_process.stdout is None:
+            raise RuntimeError("parec process is not running")
+
+        data = b""
+        while len(data) < size:
+            chunk = self._parec_process.stdout.read(size - len(data))
+            if not chunk:
+                # parec ended unexpectedly; attempt restart once
+                self._restart_parec()
+                continue
+            data += chunk
+        return data
+
+    def _restart_parec(self) -> None:
+        if self._parec_process:
+            self._parec_process.kill()
+            self._parec_process.wait(timeout=1)
+        self._start_parec()
 
     def record_chunk(self, duration: float = 0.1) -> bytes:
         """Record audio for specified duration and return WAV bytes."""
         import wave
 
-        stream = self._pyaudio.open(
-            format=self._format,
-            channels=self._channels,
-            rate=self._sample_rate,
-            input=True,
-            frames_per_buffer=1024,
-        )
+        bytes_needed = int(self._sample_rate * duration) * self._channels * self._sample_width
+        min_bytes = self._sample_rate * self._channels * self._sample_width // 10
+        if bytes_needed < min_bytes:
+            bytes_needed = min_bytes
+        raw_audio = self._read_bytes(bytes_needed)
 
-        frames = []
-        chunk_count = int(self._sample_rate / 1024 * duration)
-
-        for _ in range(chunk_count):
-            data = stream.read(1024)
-            frames.append(data)
-
-        stream.stop_stream()
-        stream.close()
-
-        # Create WAV file in memory
         wav_buffer = io.BytesIO()
         with wave.open(wav_buffer, 'wb') as wav_file:
             wav_file.setnchannels(self._channels)
-            wav_file.setsampwidth(self._pyaudio.get_sample_size(self._format))
+            wav_file.setsampwidth(self._sample_width)
             wav_file.setframerate(self._sample_rate)
-            wav_file.writeframes(b''.join(frames))
+            wav_file.writeframes(raw_audio)
 
         return wav_buffer.getvalue()
 
     def __del__(self):
-        if hasattr(self, '_pyaudio'):
-            self._pyaudio.terminate()
+        if hasattr(self, "_parec_process") and self._parec_process:
+            self._parec_process.kill()
+            try:
+                self._parec_process.wait(timeout=1)
+            except Exception:
+                pass

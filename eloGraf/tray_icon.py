@@ -84,6 +84,11 @@ class SystemTrayIcon(QSystemTrayIcon):
         self._pending_engine_refresh = False
         self._create_stt_engine()
 
+        self._engine_failure_count = 0
+        self._engine_retry_scheduled = False
+        self._max_engine_retries = 5
+        self._engine_retry_delay_ms = 2000
+
         self.dictating = False
         self.suspended = False
         self._postcommand_ran = True
@@ -185,9 +190,16 @@ class SystemTrayIcon(QSystemTrayIcon):
                 "vad_threshold": self.settings.googleCloudVadThreshold,
             }
         if engine_type == "openai-realtime":
+            model = self.settings.openaiModel or "gpt-4o-realtime-preview"
+            if model != "gpt-4o-realtime-preview":
+                logging.warning(
+                    "OpenAI Realtime requires gpt-4o-realtime-preview; overriding configured value '%s'",
+                    model,
+                )
+                model = "gpt-4o-realtime-preview"
             return {
                 "api_key": self.settings.openaiApiKey,
-                "model": self.settings.openaiModel,
+                "model": model,
                 "api_version": self.settings.openaiApiVersion,
                 "sample_rate": self.settings.openaiSampleRate,
                 "channels": self.settings.openaiChannels,
@@ -211,6 +223,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.dictation_timer.timeout.connect(self.dictation_runner.poll)
 
     def _refresh_stt_engine(self) -> None:
+        self._engine_retry_scheduled = False
         runner = getattr(self, "dictation_runner", None)
         if runner and runner.is_running():
             logging.info("STT engine running; stopping before applying new settings")
@@ -277,6 +290,8 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.state_machine.set_loading()
         elif state_name in ('READY', 'DICTATING', 'RECORDING', 'TRANSCRIBING'):
             self.state_machine.set_ready()
+            self._engine_failure_count = 0
+            self._engine_retry_scheduled = False
         elif state_name == 'SUSPENDED':
             self.state_machine.set_suspended()
         elif state_name in ('STOPPING', 'IDLE'):
@@ -289,7 +304,8 @@ class SystemTrayIcon(QSystemTrayIcon):
         logging.info(f"STT engine: {line}")
 
     def _handle_dictation_exit(self, return_code: int) -> None:
-        if return_code != 0:
+        failure = return_code != 0
+        if failure:
             logging.warning(f"STT engine exited with code {return_code}")
         if self.dictation_timer.isActive():
             self.dictation_timer.stop()
@@ -298,8 +314,31 @@ class SystemTrayIcon(QSystemTrayIcon):
         self._update_action_states()
         self._update_tooltip()
         self._run_postcommand_once()
-        if getattr(self, "_pending_engine_refresh", False):
-            self._refresh_stt_engine()
+        if failure:
+            self._pending_engine_refresh = False
+            self._engine_failure_count += 1
+            if self._engine_failure_count >= self._max_engine_retries:
+                logging.error(
+                    "STT engine failed %d times; exiting application",
+                    self._engine_failure_count,
+                )
+                QTimer.singleShot(0, lambda: QCoreApplication.exit(1))
+                return
+            delay_ms = min(10000, self._engine_failure_count * self._engine_retry_delay_ms)
+            logging.info(
+                "Retrying STT engine in %.1f seconds (attempt %d/%d)",
+                delay_ms / 1000,
+                self._engine_failure_count,
+                self._max_engine_retries,
+            )
+            if not self._engine_retry_scheduled:
+                self._engine_retry_scheduled = True
+                QTimer.singleShot(delay_ms, self._refresh_stt_engine)
+        else:
+            self._engine_failure_count = 0
+            if getattr(self, "_pending_engine_refresh", False):
+                self._pending_engine_refresh = False
+                self._refresh_stt_engine()
 
     def _run_postcommand_once(self) -> None:
         if self._postcommand_ran:
@@ -721,4 +760,3 @@ class SystemTrayIcon(QSystemTrayIcon):
             logging.debug("Reload dictate process")
             self.stop_dictate()
             self.dictate()
-
