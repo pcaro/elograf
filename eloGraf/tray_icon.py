@@ -40,6 +40,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         except Exception as exc:
             logging.warning("Failed to load settings: %s", exc)
         self.ipc = ipc
+        self.direct_click_enabled = self.settings.directClick
 
         menu = QMenu(parent)
 
@@ -55,6 +56,10 @@ class SystemTrayIcon(QSystemTrayIcon):
         configAction = menu.addAction(self.tr("Configuration"))
         exitAction = menu.addAction(self.tr("Exit"))
         self.setContextMenu(menu)
+
+        if self.direct_click_enabled:
+            self.activated.connect(self.commute)
+
         self.state_machine = DictationStateMachine()
         self.state_machine.on_state = lambda state: self._apply_state(state.icon_state, state.dictating, state.suspended)
         exitAction.triggered.connect(self.exit)
@@ -465,7 +470,11 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.dictation_runner.stop()
         self.state_machine.set_idle()
 
-
+    def commute(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        """Handle direct click on tray icon when direct_click_enabled is True."""
+        if reason != QSystemTrayIcon.ActivationReason.Trigger:
+            return
+        self.controller_toggle()
 
     def controller_toggle(self) -> None:
         action = self.state_machine.toggle()
@@ -504,6 +513,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         index = adv_window.ui.deviceName.findData(self.settings.deviceName)
         if index >= 0:
             adv_window.ui.deviceName.setCurrentIndex(index)
+        adv_window.ui.direct_click_cb.setChecked(self.settings.directClick)
 
         # Nerd-Dictation settings
         adv_window.ui.sampleRate.setText(str(self.settings.sampleRate))
@@ -571,6 +581,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.settings.keyboard = adv_window.ui.keyboard_le.text()
             device_data = adv_window.ui.deviceName.currentData()
             self.settings.deviceName = device_data if device_data else "default"
+            self.settings.directClick = adv_window.ui.direct_click_cb.isChecked()
 
             # Nerd-Dictation settings
             try:
@@ -669,6 +680,18 @@ class SystemTrayIcon(QSystemTrayIcon):
 
             self.settings.save()
             self.settings.load()
+
+            # Update direct click connection if setting changed
+            old_direct_click = self.direct_click_enabled
+            self.direct_click_enabled = self.settings.directClick
+            if old_direct_click != self.direct_click_enabled:
+                try:
+                    self.activated.disconnect(self.commute)
+                except (TypeError, RuntimeError):
+                    pass
+                if self.direct_click_enabled:
+                    self.activated.connect(self.commute)
+
             self._refresh_stt_engine()
 
     def config(self) -> None:

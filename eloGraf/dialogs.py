@@ -112,41 +112,60 @@ class AdvancedUI(QDialog):
         self._add_shortcuts_config()
         self._populate_audio_devices()
 
+        self.engine_tabs = {
+            "nerd-dictation": self.ui.nerd_dictation_tab,
+            "whisper-docker": self.ui.whisper_docker_tab,
+            "google-cloud-speech": self.ui.google_cloud_tab,
+            "openai-realtime": self.ui.openai_tab,
+        }
+
+        self.ui.stt_engine_cb.currentTextChanged.connect(self._on_stt_engine_changed)
+        self.ui.manage_models_btn.clicked.connect(self.manage_models)
+
+    def _on_stt_engine_changed(self, engine: str):
+        if engine in self.engine_tabs:
+            self.ui.tabWidget.setCurrentWidget(self.engine_tabs[engine])
+
+    def manage_models(self) -> None:
+        model, _ = Settings().current_model()
+        dialog = ConfigPopup(model)
+        dialog.exec()
+
     def _add_shortcuts_config(self) -> None:
-        row_count = self.ui.gridLayout.rowCount()
+        # This is a bit of a hack, but it's the easiest way to add the shortcuts
+        # to the general tab without redoing the whole UI file.
+        layout = self.ui.general_grid_layout
+        row_count = layout.rowCount()
 
         label_begin = QLabel(self.tr("Global shortcut: Begin"))
         label_begin.setToolTip(self.tr("Global keyboard shortcut to begin dictation (KDE only)"))
         self.beginShortcut = QKeySequenceEdit()
-        self.ui.gridLayout.addWidget(label_begin, row_count, 0)
-        self.ui.gridLayout.addWidget(self.beginShortcut, row_count, 1)
+        layout.addWidget(label_begin, row_count, 0)
+        layout.addWidget(self.beginShortcut, row_count, 1)
 
         label_end = QLabel(self.tr("Global shortcut: End"))
         label_end.setToolTip(self.tr("Global keyboard shortcut to end dictation (KDE only)"))
         self.endShortcut = QKeySequenceEdit()
-        self.ui.gridLayout.addWidget(label_end, row_count + 1, 0)
-        self.ui.gridLayout.addWidget(self.endShortcut, row_count + 1, 1)
+        layout.addWidget(label_end, row_count + 1, 0)
+        layout.addWidget(self.endShortcut, row_count + 1, 1)
 
         label_toggle = QLabel(self.tr("Global shortcut: Toggle"))
         label_toggle.setToolTip(self.tr("Global keyboard shortcut to toggle dictation (KDE only)"))
         self.toggleShortcut = QKeySequenceEdit()
-        self.ui.gridLayout.addWidget(label_toggle, row_count + 2, 0)
-        self.ui.gridLayout.addWidget(self.toggleShortcut, row_count + 2, 1)
+        layout.addWidget(label_toggle, row_count + 2, 0)
+        layout.addWidget(self.toggleShortcut, row_count + 2, 1)
 
         label_suspend = QLabel(self.tr("Global shortcut: Suspend"))
         label_suspend.setToolTip(self.tr("Global keyboard shortcut to suspend dictation (KDE only)"))
         self.suspendShortcut = QKeySequenceEdit()
-        self.ui.gridLayout.addWidget(label_suspend, row_count + 3, 0)
-        self.ui.gridLayout.addWidget(self.suspendShortcut, row_count + 3, 1)
+        layout.addWidget(label_suspend, row_count + 3, 0)
+        layout.addWidget(self.suspendShortcut, row_count + 3, 1)
 
         label_resume = QLabel(self.tr("Global shortcut: Resume"))
         label_resume.setToolTip(self.tr("Global keyboard shortcut to resume dictation (KDE only)"))
         self.resumeShortcut = QKeySequenceEdit()
-        self.ui.gridLayout.addWidget(label_resume, row_count + 4, 0)
-        self.ui.gridLayout.addWidget(self.resumeShortcut, row_count + 4, 1)
-
-        self.ui.gridLayout.removeWidget(self.ui.buttonBox)
-        self.ui.gridLayout.addWidget(self.ui.buttonBox, row_count + 5, 1)
+        layout.addWidget(label_resume, row_count + 4, 0)
+        layout.addWidget(self.resumeShortcut, row_count + 4, 1)
 
     def timeoutChanged(self, num: int) -> None:
         self.ui.timeoutDisplay.setText(str(num))
@@ -381,7 +400,7 @@ class ConfigPopup(QDialog):
         self.currentModel = current_model
         self.returnValue = None
 
-        self.setWindowTitle("Elograf - " + version.__version__)
+        self.setWindowTitle(self.tr("Manage Models"))
         self.setWindowIcon(QIcon(":/icons/elograf/24/micro.png"))
         layout = QVBoxLayout(self)
         model_list_path()
@@ -394,24 +413,19 @@ class ConfigPopup(QDialog):
         self.table.setModel(self.list)
         if selected is not None:
             self.table.selectRow(selected)
-        self.interfaceCB = QCheckBox(self.tr("Active direct click on icon"))
-        layout.addWidget(self.interfaceCB)
+
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         remote_button = QPushButton(self.tr("Import remote model"))
         button_box.addButton(remote_button, QDialogButtonBox.ButtonRole.ActionRole)
         local_button = QPushButton(self.tr("Import local model"))
         button_box.addButton(local_button, QDialogButtonBox.ButtonRole.ActionRole)
-        advanced_button = QPushButton(self.tr("Advanced"))
-        button_box.addButton(advanced_button, QDialogButtonBox.ButtonRole.ActionRole)
         layout.addWidget(button_box)
 
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.accept)
-        advanced_button.clicked.connect(self.advanced)
         local_button.clicked.connect(self.local)
         remote_button.clicked.connect(self.remote)
         self.table.doubleClicked.connect(self.edit)
-        self.interfaceCB.clicked.connect(self.interface)
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -443,21 +457,12 @@ class ConfigPopup(QDialog):
                 selected_index = index
         return model_list, selected_index
 
-    def interface(self) -> None:
-        self.settings.directClick = self.interfaceCB.isChecked()
-
-    @staticmethod
-    def _get_ui_attr(ui, *names):
-        for name in names:
-            if hasattr(ui, name):
-                return getattr(ui, name)
-        return None
-
     def accept(self) -> None:  # type: ignore[override]
         selected_indexes = self.table.selectedIndexes()
         model_name = ""
         for index in selected_indexes:
             model_name = self.list.data(self.list.index(index.row(), 1))
+        self.settings.setValue("Model/name", model_name)
         self.settings.save()
         self.returnValue = [model_name]
         self.close()
@@ -510,135 +515,7 @@ class ConfigPopup(QDialog):
         if selected_row is not None:
             self.update_list(selected_row)
 
-    def advanced(self) -> None:
-        adv_window = AdvancedUI()
-        field_precommand = self._get_ui_attr(adv_window.ui, 'precommand', 'preCommand')
-        if field_precommand:
-            field_precommand.setText(self.settings.precommand)
-        field_postcommand = self._get_ui_attr(adv_window.ui, 'postcommand', 'postCommand')
-        if field_postcommand:
-            field_postcommand.setText(self.settings.postcommand)
-        sample_rate_field = self._get_ui_attr(adv_window.ui, "sampleRate", "sample_rate")
-        if sample_rate_field:
-            sample_rate_field.setText(str(self.settings.sampleRate))
-        adv_window.ui.timeout.setValue(self.settings.timeout)
-        adv_window.ui.timeoutDisplay.setText(str(self.settings.timeout))
-        adv_window.ui.idleTime.setValue(self.settings.idleTime)
-        adv_window.ui.idleDisplay.setText(str(self.settings.idleTime))
-        adv_window.ui.punctuate.setValue(self.settings.punctuate)
-        adv_window.ui.punctuateDisplay.setText(str(self.settings.punctuate))
-        adv_window.ui.fullSentence.setChecked(self.settings.fullSentence)
-        adv_window.ui.digits.setChecked(self.settings.digits)
-        adv_window.ui.useSeparator.setChecked(self.settings.useSeparator)
-        direct_click_checkbox = getattr(adv_window.ui, "directClick", None)
-        if direct_click_checkbox is not None:
-            direct_click_checkbox.setChecked(self.settings.directClick)
-        field_freeCommand = self._get_ui_attr(adv_window.ui, 'freecommand', 'freeCommand')
-        if field_freeCommand:
-            field_freeCommand.setText(self.settings.freeCommand)
-        field_env = self._get_ui_attr(adv_window.ui, 'env')
-        if field_env:
-            field_env.setText(self.settings.env)
-        tool_field = self._get_ui_attr(adv_window.ui, "tool", "tool_cb")
-        if tool_field and hasattr(tool_field, "setCurrentText"):
-            tool_field.setCurrentText(self.settings.tool)
-        device_field = self._get_ui_attr(adv_window.ui, "deviceName", "device_name")
-        if device_field:
-            device_name = self.settings.deviceName
-            index = device_field.findData(device_name)
-            if index >= 0:
-                device_field.setCurrentIndex(index)
-        adv_window.beginShortcut.setKeySequence(self.settings.beginShortcut)
-        adv_window.endShortcut.setKeySequence(self.settings.endShortcut)
-        adv_window.toggleShortcut.setKeySequence(self.settings.toggleShortcut)
-        adv_window.suspendShortcut.setKeySequence(self.settings.suspendShortcut)
-        adv_window.resumeShortcut.setKeySequence(self.settings.resumeShortcut)
 
-        # Set STT engine and Whisper settings
-        stt_engine_field = self._get_ui_attr(adv_window.ui, "stt_engine_cb")
-        if stt_engine_field:
-            stt_engine_field.setCurrentText(self.settings.sttEngine)
-        whisper_model_field = self._get_ui_attr(adv_window.ui, "whisper_model_cb")
-        if whisper_model_field:
-            whisper_model_field.setCurrentText(self.settings.whisperModel)
-        whisper_language_field = self._get_ui_attr(adv_window.ui, "whisper_language_le")
-        if whisper_language_field:
-            whisper_language_field.setText(self.settings.whisperLanguage)
-        whisper_port_field = self._get_ui_attr(adv_window.ui, "whisper_port_le")
-        if whisper_port_field:
-            whisper_port_field.setText(str(self.settings.whisperPort))
-        whisper_chunk_field = self._get_ui_attr(adv_window.ui, "whisper_chunk_le")
-        if whisper_chunk_field:
-            whisper_chunk_field.setText(str(self.settings.whisperChunkDuration))
-
-        if adv_window.exec():
-            pre_field = self._get_ui_attr(adv_window.ui, "precommand", "preCommand")
-            self.settings.precommand = pre_field.text() if pre_field else ""
-            post_field = self._get_ui_attr(adv_window.ui, "postcommand", "postCommand")
-            self.settings.postcommand = post_field.text() if post_field else ""
-            sample_rate_field = self._get_ui_attr(adv_window.ui, "sampleRate", "sample_rate")
-            try:
-                self.settings.sampleRate = int(sample_rate_field.text()) if sample_rate_field else DEFAULT_RATE
-            except (ValueError, TypeError):
-                self.settings.sampleRate = DEFAULT_RATE
-            self.settings.timeout = adv_window.ui.timeout.value()
-            self.settings.idleTime = adv_window.ui.idleTime.value()
-            self.settings.punctuate = adv_window.ui.punctuate.value()
-            self.settings.fullSentence = adv_window.ui.fullSentence.isChecked()
-            self.settings.digits = adv_window.ui.digits.isChecked()
-            self.settings.useSeparator = adv_window.ui.useSeparator.isChecked()
-            direct_click_checkbox = getattr(adv_window.ui, "directClick", None)
-            if direct_click_checkbox is not None:
-                self.settings.directClick = direct_click_checkbox.isChecked()
-            free_field = self._get_ui_attr(adv_window.ui, "freecommand", "freeCommand")
-            self.settings.freeCommand = free_field.text() if free_field else ""
-            env_field = self._get_ui_attr(adv_window.ui, "env")
-            self.settings.env = env_field.text() if env_field else ""
-            device_field = self._get_ui_attr(adv_window.ui, "deviceName", "device_name")
-            if device_field and hasattr(device_field, "currentData"):
-                device_data = device_field.currentData()
-                self.settings.deviceName = device_data if device_data else "default"
-            elif device_field and hasattr(device_field, "currentText"):
-                self.settings.deviceName = device_field.currentText()
-            elif device_field and hasattr(device_field, "text"):
-                self.settings.deviceName = device_field.text()
-            else:
-                self.settings.deviceName = "default"
-            tool_field = self._get_ui_attr(adv_window.ui, "tool", "tool_cb")
-            if tool_field and hasattr(tool_field, "currentText"):
-                self.settings.tool = tool_field.currentText()
-            else:
-                self.settings.tool = ""
-            self.settings.beginShortcut = adv_window.beginShortcut.keySequence().toString()
-            self.settings.endShortcut = adv_window.endShortcut.keySequence().toString()
-            self.settings.toggleShortcut = adv_window.toggleShortcut.keySequence().toString()
-            self.settings.suspendShortcut = adv_window.suspendShortcut.keySequence().toString()
-            self.settings.resumeShortcut = adv_window.resumeShortcut.keySequence().toString()
-
-            # Read STT engine and Whisper settings
-            stt_engine_field = self._get_ui_attr(adv_window.ui, "stt_engine_cb")
-            if stt_engine_field:
-                self.settings.sttEngine = stt_engine_field.currentText()
-            whisper_model_field = self._get_ui_attr(adv_window.ui, "whisper_model_cb")
-            if whisper_model_field:
-                self.settings.whisperModel = whisper_model_field.currentText()
-            whisper_language_field = self._get_ui_attr(adv_window.ui, "whisper_language_le")
-            if whisper_language_field:
-                self.settings.whisperLanguage = whisper_language_field.text()
-            whisper_port_field = self._get_ui_attr(adv_window.ui, "whisper_port_le")
-            if whisper_port_field:
-                try:
-                    self.settings.whisperPort = int(whisper_port_field.text())
-                except (ValueError, TypeError):
-                    self.settings.whisperPort = 9000
-            whisper_chunk_field = self._get_ui_attr(adv_window.ui, "whisper_chunk_le")
-            if whisper_chunk_field:
-                try:
-                    self.settings.whisperChunkDuration = float(whisper_chunk_field.text())
-                except (ValueError, TypeError):
-                    self.settings.whisperChunkDuration = 5.0
-
-            self.settings.save()
 
     def setModel(self, model: str) -> None:
         self.settings.setValue("Model/name", model)
