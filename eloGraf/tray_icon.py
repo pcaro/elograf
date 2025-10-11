@@ -70,6 +70,13 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.micro = QIcon.fromTheme("audio-input-microphone")
         if self.micro.isNull():
             self.micro = QIcon(":/icons/elograf/24/micro.png")
+
+        # Cache generated icons to avoid regenerating them
+        self._loading_icon = None
+        self._ready_icon = None
+        self._suspended_icon = None
+        self._current_icon_state = None
+
         self.setIcon(self.nomicro)
 
         self.dictation_timer = QTimer(self)
@@ -100,52 +107,58 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def _get_loading_icon(self):
         """Get microphone icon with red loading indicator"""
-        from PyQt6.QtGui import QPixmap, QPainter, QColor
-        from PyQt6.QtCore import Qt
+        if self._loading_icon is None:
+            from PyQt6.QtGui import QPixmap, QPainter, QColor
+            from PyQt6.QtCore import Qt
 
-        # Get base icon as pixmap
-        pixmap = self.micro.pixmap(24, 24)
-        painter = QPainter(pixmap)
+            # Get base icon as pixmap
+            pixmap = self.micro.pixmap(24, 24)
+            painter = QPainter(pixmap)
 
-        # Draw red line at bottom
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(255, 0, 0))  # Red
-        painter.drawRect(0, 22, 24, 2)  # 2px red line at bottom
+            # Draw red line at bottom
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(255, 0, 0))  # Red
+            painter.drawRect(0, 22, 24, 2)  # 2px red line at bottom
 
-        painter.end()
-        return QIcon(pixmap)
+            painter.end()
+            self._loading_icon = QIcon(pixmap)
+        return self._loading_icon
 
     def _get_ready_icon(self):
         """Get microphone icon with green ready indicator"""
-        from PyQt6.QtGui import QPixmap, QPainter, QColor
-        from PyQt6.QtCore import Qt
+        if self._ready_icon is None:
+            from PyQt6.QtGui import QPixmap, QPainter, QColor
+            from PyQt6.QtCore import Qt
 
-        # Get base icon as pixmap
-        pixmap = self.micro.pixmap(24, 24)
-        painter = QPainter(pixmap)
+            # Get base icon as pixmap
+            pixmap = self.micro.pixmap(24, 24)
+            painter = QPainter(pixmap)
 
-        # Draw green line at bottom
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(0, 255, 0))  # Green
-        painter.drawRect(0, 22, 24, 2)  # 2px green line at bottom
+            # Draw green line at bottom
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(0, 255, 0))  # Green
+            painter.drawRect(0, 22, 24, 2)  # 2px green line at bottom
 
-        painter.end()
-        return QIcon(pixmap)
+            painter.end()
+            self._ready_icon = QIcon(pixmap)
+        return self._ready_icon
 
     def _get_suspended_icon(self):
         """Get microphone icon with orange suspended indicator"""
-        from PyQt6.QtGui import QPixmap, QPainter, QColor
-        from PyQt6.QtCore import Qt
+        if self._suspended_icon is None:
+            from PyQt6.QtGui import QPixmap, QPainter, QColor
+            from PyQt6.QtCore import Qt
 
-        pixmap = self.micro.pixmap(24, 24)
-        painter = QPainter(pixmap)
+            pixmap = self.micro.pixmap(24, 24)
+            painter = QPainter(pixmap)
 
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(255, 165, 0))
-        painter.drawRect(0, 22, 24, 2)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(255, 165, 0))
+            painter.drawRect(0, 22, 24, 2)
 
-        painter.end()
-        return QIcon(pixmap)
+            painter.end()
+            self._suspended_icon = QIcon(pixmap)
+        return self._suspended_icon
 
     def _build_engine_kwargs(self, engine_type: str) -> Dict[str, Any]:
         if engine_type == "whisper-docker":
@@ -232,14 +245,19 @@ class SystemTrayIcon(QSystemTrayIcon):
     def _apply_state(self, icon_state: IconState, dictating: bool, suspended: bool) -> None:
         self.dictating = dictating
         self.suspended = suspended
-        if icon_state == IconState.LOADING:
-            self.setIcon(self._get_loading_icon())
-        elif icon_state == IconState.READY:
-            self.setIcon(self._get_ready_icon())
-        elif icon_state == IconState.SUSPENDED:
-            self.setIcon(self._get_suspended_icon())
-        else:
-            self.setIcon(self.nomicro)
+
+        # Only update icon if state has changed
+        if self._current_icon_state != icon_state:
+            if icon_state == IconState.LOADING:
+                self.setIcon(self._get_loading_icon())
+            elif icon_state == IconState.READY:
+                self.setIcon(self._get_ready_icon())
+            elif icon_state == IconState.SUSPENDED:
+                self.setIcon(self._get_suspended_icon())
+            else:
+                self.setIcon(self.nomicro)
+            self._current_icon_state = icon_state
+
         self._update_tooltip()
         # update toggle label
         if hasattr(self, "toggleAction"):
