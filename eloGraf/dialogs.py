@@ -180,8 +180,16 @@ class AdvancedUI(QDialog):
         self.ui.manage_models_btn.clicked.connect(self.manage_models)
 
     def _on_stt_engine_changed(self, engine: str):
+        # Switch to the appropriate tab
         if engine in self.engine_tabs:
             self.ui.tabWidget.setCurrentWidget(self.engine_tabs[engine])
+
+        # Enable/disable tabs based on selected engine
+        for engine_name, tab in self.engine_tabs.items():
+            enabled = (engine_name == engine)
+            idx = self.ui.tabWidget.indexOf(tab)
+            if idx >= 0:
+                self.ui.tabWidget.setTabEnabled(idx, enabled)
 
     def manage_models(self) -> None:
         settings = Settings()
