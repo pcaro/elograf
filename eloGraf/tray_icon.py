@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from eloGraf.dialogs import AdvancedUI
 from eloGraf.dictation import CommandBuildError, build_dictation_command
-from eloGraf.ipc import IPCManager
+from eloGraf.ipc_manager import IPCManager
 from eloGraf.stt_engine import STTController, STTProcessRunner
 from eloGraf.stt_factory import create_stt_engine
 from eloGraf.nerd_controller import NerdDictationState
