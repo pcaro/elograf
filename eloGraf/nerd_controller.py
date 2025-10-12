@@ -6,7 +6,8 @@ from enum import Enum, auto
 from subprocess import PIPE, Popen, STDOUT
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from eloGraf.stt_engine import STTController, STTProcessRunner
+from eloGraf.base_controller import EnumStateController
+from eloGraf.stt_engine import STTProcessRunner
 
 
 class NerdDictationState(Enum):
@@ -25,34 +26,28 @@ OutputListener = Callable[[str], None]
 ExitListener = Callable[[int], None]
 
 
-class NerdDictationController(STTController):
+STATE_MAP = {
+    "idle": NerdDictationState.IDLE,
+    "starting": NerdDictationState.STARTING,
+    "loading": NerdDictationState.LOADING,
+    "ready": NerdDictationState.READY,
+    "dictating": NerdDictationState.DICTATING,
+    "suspended": NerdDictationState.SUSPENDED,
+    "stopping": NerdDictationState.STOPPING,
+    "failed": NerdDictationState.FAILED,
+}
+
+
+class NerdDictationController(EnumStateController[NerdDictationState]):
     """Pure controller that interprets nerd-dictation output into states."""
 
     def __init__(self) -> None:
-        self._state = NerdDictationState.IDLE
-        self._state_listeners: List[StateListener] = []
-        self._output_listeners: List[OutputListener] = []
-        self._exit_listeners: List[ExitListener] = []
+        super().__init__(
+            initial_state=NerdDictationState.IDLE,
+            state_map=STATE_MAP,
+            engine_name="NerdDictation",
+        )
         self._stop_requested = False
-
-    @property
-    def state(self) -> NerdDictationState:
-        return self._state
-
-    def add_state_listener(self, callback: StateListener) -> None:
-        self._state_listeners.append(callback)
-
-    def add_output_listener(self, callback: OutputListener) -> None:
-        self._output_listeners.append(callback)
-
-    def add_exit_listener(self, callback: ExitListener) -> None:
-        self._exit_listeners.append(callback)
-
-    def remove_exit_listener(self, callback: ExitListener) -> None:
-        try:
-            self._exit_listeners.remove(callback)
-        except ValueError:
-            pass
 
     def start(self) -> None:
         self._stop_requested = False
@@ -72,8 +67,7 @@ class NerdDictationController(STTController):
 
     def fail_to_start(self) -> None:
         self._stop_requested = False
-        self._set_state(NerdDictationState.FAILED)
-        self._emit_exit(1)
+        super().fail_to_start()
 
     def handle_output(self, line: str) -> None:
         self._emit_output(line)
@@ -100,50 +94,6 @@ class NerdDictationController(STTController):
             self._set_state(NerdDictationState.FAILED)
         self._emit_exit(return_code)
         self._stop_requested = False
-
-    def _set_state(self, state: NerdDictationState) -> None:
-        if self._state == state:
-            return
-        self._state = state
-        for listener in self._state_listeners:
-            listener(state)
-
-    def _emit_output(self, line: str) -> None:
-        for listener in self._output_listeners:
-            listener(line)
-
-    def _emit_exit(self, return_code: int) -> None:
-        for listener in self._exit_listeners:
-            listener(return_code)
-
-    def transition_to(self, state: str) -> None:
-        """Transition to a named state using string identifier."""
-        state_lower = state.lower()
-        state_map = {
-            "idle": NerdDictationState.IDLE,
-            "starting": NerdDictationState.STARTING,
-            "loading": NerdDictationState.LOADING,
-            "ready": NerdDictationState.READY,
-            "dictating": NerdDictationState.DICTATING,
-            "suspended": NerdDictationState.SUSPENDED,
-            "stopping": NerdDictationState.STOPPING,
-            "failed": NerdDictationState.FAILED,
-        }
-
-        if state_lower in state_map:
-            self._set_state(state_map[state_lower])
-        else:
-            logging.warning(f"Unknown state '{state}' for NerdDictation controller")
-
-    def emit_transcription(self, text: str) -> None:
-        """Emit transcribed text to output listeners."""
-        self._emit_output(text)
-
-    def emit_error(self, message: str) -> None:
-        """Emit error message and transition to failed state."""
-        logging.error(f"NerdDictation error: {message}")
-        self._emit_output(f"ERROR: {message}")
-        self._set_state(NerdDictationState.FAILED)
 
 
 class NerdDictationProcessRunner(STTProcessRunner):

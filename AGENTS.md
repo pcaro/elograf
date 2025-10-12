@@ -15,12 +15,13 @@ The code is organized as a Python package with Qt interface (PyQt6), specific co
 
 All engines implement a common interface defined in `stt_engine.py`:
 
-**STTController (ABC)**:
 - `add_state_listener()`: Register callback for state changes
 - `add_output_listener()`: Register callback for transcriptions
 - `add_exit_listener()`: Register callback for process exit
-- `remove_exit_listener()`: Unregister exit callback (prevents race conditions)
 - `start()`, `stop_requested()`, `suspend_requested()`, `resume_requested()`: Lifecycle control
+- `transition_to(state)`: Unified way to broadcast controller-specific state changes
+- `emit_transcription(text)`: Emit final transcription text to listeners
+- `emit_error(message)`: Emit error text and move controller into a failed state
 
 **STTProcessRunner (ABC)**:
 - `start()`, `stop()`, `suspend()`, `resume()`: Process management
@@ -29,19 +30,214 @@ All engines implement a common interface defined in `stt_engine.py`:
 
 #### Race Condition Prevention
 
-The `remove_exit_listener()` method was added to resolve a race condition in engine refresh: when a new engine is created, the previous engine's process may terminate late and fire its exit handler, incorrectly incrementing the failure counter for the new engine. `EngineManager` now unregisters callbacks from the old controller before creating the new one, ensuring that old process events don't affect the new engine's state.
+`EngineManager` keeps track of pending refresh operations and now guards them with a timeout. If an engine refuses to stop, a safety timer forcibly tears down the runner before creating the new engine, preventing stale exit events from blocking refreshes.
 
 ### Lifecycle Management with EngineManager
 
 `engine_manager.py` manages creation, refresh, and failure recovery:
-- **Safe creation**: Unregisters old listeners before creating new engine
-- **Circuit breaker**: Switches to fallback engine after repeated failures
+- **Safe creation**: Disconnects timers and listeners before swapping engines
+- **Circuit breaker**: Classifies failures and switches to fallback engines after repeated errors
 - **Retry with exponential backoff**: Automatic retries with incremental delay
-- **Refresh timeout**: Safety timer for engine shutdown deadlocks
+- **Refresh timeout**: Safety timer that forces shutdown if an engine refuses to stop
 
 ## Speech Recognition Engines
 
-### OpenAI Realtime API
+### 1. nerd-dictation (Default)
+
+The nerd-dictation integration is implemented in `nerd_controller.py` and provides a local, privacy-focused CLI-based speech recognition solution.
+
+#### Architecture
+
+nerd-dictation is an external command-line tool that EloGraf wraps and monitors. The controller parses stdout to detect state changes.
+
+**Key Features:**
+- Fully offline operation with no network requirements
+- Local Vosk model processing
+- Direct subprocess management
+- State detection via output parsing
+
+#### State Machine
+
+States are detected by parsing nerd-dictation's stdout messages:
+
+- **IDLE**: No dictation active
+- **STARTING**: Process launching
+- **LOADING**: "loading model" detected in output
+- **READY**: "model loaded", "listening", or "ready" detected
+- **DICTATING**: "dictation started" detected
+- **SUSPENDED**: "suspended" detected
+- **STOPPING**: Stop command sent
+- **FAILED**: Non-zero exit or error
+
+#### Process Management
+
+Unlike other engines, nerd-dictation uses separate command invocations for control:
+
+```bash
+nerd-dictation begin         # Start dictation
+nerd-dictation end           # Stop dictation
+nerd-dictation suspend       # Pause
+nerd-dictation resume        # Continue
+```
+
+EloGraf spawns the main process and monitors stdout, sending control commands via separate subprocess calls.
+
+#### Configuration
+
+- **Model**: Vosk model directory path
+- **Sample Rate**: Audio sampling rate (default: 44100 Hz)
+- **Timeout**: Auto-stop after silence period (0 = disabled)
+- **Idle Time**: CPU vs responsiveness balance (default: 100ms)
+- **Punctuation Timeout**: Add punctuation based on pause duration
+
+#### Requirements
+
+- `nerd-dictation` installed separately (not included)
+- Vosk model files downloaded
+- PulseAudio or ALSA for audio capture
+
+### 2. Whisper Docker
+
+The Whisper Docker integration is implemented in `whisper_docker_controller.py` and runs OpenAI's Whisper ASR in a Docker container as a REST API service.
+
+#### Architecture
+
+Uses the `onerahmet/openai-whisper-asr-webservice` Docker image, which exposes a REST API at port 9000 (configurable).
+
+**Key Features:**
+- High accuracy with Whisper models (tiny, base, small, medium, large-v3)
+- Automatic container lifecycle management
+- Voice Activity Detection (VAD) to skip silence
+- Auto-reconnect on API failures
+- Chunk-based transcription
+
+#### Container Management
+
+The runner automatically:
+1. Checks if container exists and matches requested model
+2. Stops/recreates container if model changed
+3. Starts container if stopped
+4. Waits for API readiness (up to 180s timeout)
+
+```bash
+docker run -d --name elograf-whisper \
+  -p 9000:9000 \
+  -e ASR_MODEL=base \
+  -e ASR_ENGINE=openai_whisper \
+  onerahmet/openai-whisper-asr-webservice:latest
+```
+
+#### Audio Processing Flow
+
+1. **Record**: Captures audio chunks via pyaudio (configurable duration, default 5s)
+2. **VAD Check**: Calculates RMS audio level, skips if below threshold
+3. **Transcribe**: POSTs WAV file to `/asr` endpoint with parameters
+4. **Simulate**: Types transcribed text using dotool/xdotool
+5. **Retry**: Auto-reconnects and retries on failures (up to 3 attempts)
+
+#### REST API
+
+- **Endpoint**: `POST http://localhost:9000/asr`
+- **Parameters**:
+  - `output=json`: Response format
+  - `language`: Optional language code (e.g., "en", "es")
+- **Request**: multipart/form-data with audio_file (WAV format)
+- **Response**: `{"text": "transcribed text"}`
+
+#### Configuration
+
+- **Model**: Whisper model size (tiny/base/small/medium/large-v3)
+- **Language**: Language code or auto-detect
+- **Port**: API port (default: 9000)
+- **Chunk Duration**: Recording interval in seconds (default: 5.0)
+- **Sample Rate**: Audio sampling rate (default: 16000 Hz)
+- **Channels**: Audio channels (default: 1 = mono)
+- **VAD**: Enable/disable voice activity detection
+- **VAD Threshold**: RMS threshold for silence detection (default: 500.0)
+- **Auto-reconnect**: Retry on API failures (default: true)
+
+#### Requirements
+
+- Docker installed and running
+- Network access for initial image download (~2GB)
+- pyaudio for audio recording
+
+### 3. Google Cloud Speech-to-Text V2
+
+The Google Cloud Speech integration is implemented in `google_cloud_speech_controller.py` and uses Google's enterprise-grade speech recognition API with gRPC streaming.
+
+#### Architecture
+
+Uses the `google-cloud-speech` Python library to stream audio in real-time to Google Cloud Speech-to-Text V2 API.
+
+**Key Features:**
+- Real-time streaming recognition with bidirectional gRPC
+- State-of-the-art accuracy with Chirp 3 model
+- Multi-language support
+- Server-side processing
+- Automatic project ID detection from credentials
+
+#### Authentication
+
+Supports two authentication methods:
+
+1. **Service Account Key File** (recommended):
+   ```python
+   credentials_path = "/path/to/service-account-key.json"
+   os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+   ```
+
+2. **Application Default Credentials**:
+   - Uses gcloud auth application-default login
+   - Automatically detected if GOOGLE_APPLICATION_CREDENTIALS not set
+
+#### Streaming Flow
+
+1. **Setup**: Creates SpeechClient and configures recognizer
+2. **Generator**: Yields audio chunks as StreamingRecognizeRequest
+   - First request: Contains config (recognizer, language, model)
+   - Subsequent requests: Raw PCM audio data (max 25 KB chunks)
+3. **Stream**: Bidirectional gRPC stream processes audio in real-time
+4. **Results**: Receives partial and final transcription results
+5. **Output**: Only final results are emitted and typed
+
+```python
+# Recognition config
+recognition_config = RecognitionConfig(
+    auto_decoding_config=AutoDetectDecodingConfig(),
+    language_codes=["en-US"],
+    model="chirp_3",
+)
+```
+
+#### Audio Format
+
+- **Input**: WAV format from pyaudio
+- **Sent**: Raw PCM (skip 44-byte WAV header)
+- **Sample Rate**: 16000 Hz (default)
+- **Channels**: 1 (mono)
+- **Chunk Duration**: 0.1s (100ms for low latency)
+- **Max Chunk Size**: 25 KB (API limit)
+
+#### Configuration
+
+- **Credentials Path**: Path to service account JSON file
+- **Project ID**: GCP project (auto-detected if empty)
+- **Language Code**: e.g., "en-US", "es-ES", "fr-FR"
+- **Model**: chirp_3, latest_long, latest_short, etc.
+- **Sample Rate**: Audio sampling rate (default: 16000 Hz)
+- **Channels**: Audio channels (default: 1)
+- **VAD**: Enable/disable voice activity detection
+- **VAD Threshold**: RMS threshold (default: 500.0)
+
+#### Requirements
+
+- Google Cloud account with Speech-to-Text API enabled
+- Service account credentials JSON file
+- `google-cloud-speech` Python library
+- pyaudio for audio recording
+
+### 4. OpenAI Realtime API
 
 The OpenAI Realtime API integration is implemented in `openai_realtime_controller.py` and uses a WebSocket-based communication model for real-time voice transcription.
 
@@ -209,3 +405,44 @@ A real example of transcribing "Hello good morning, how are you?":
 - **gpt-4o-mini-realtime-preview**: ~$1-2 per hour of audio
 
 Mini models are more economical but may have lower accuracy with accents or background noise.
+
+### 5. AssemblyAI Realtime
+
+The AssemblyAI integration lives in `assemblyai_realtime_controller.py` and provides another cloud-hosted, low-latency streaming engine with optional live transcript formatting.
+
+#### Architecture
+
+AssemblyAI exposes a secured WebSocket endpoint that accepts PCM16 audio frames and returns interim/final transcripts. EloGraf wraps the session with two threads: one for the WebSocket client and one for continuous audio capture via `AudioRecorder`.
+
+- **Authentication**: Either request short-lived streaming tokens via REST or authenticate directly with the API key in the WebSocket headers.
+- **Session lifecycle**: Controller transitions through `STARTING → CONNECTING → READY → RECORDING/TRANSCRIBING` states and handles suspend/resume semantics.
+- **Backpressure handling**: The runner batches audio into ~200 ms chunks, base64-encodes the buffer, and sends `{"audio_data": "..."}` payloads while respecting server pacing.
+
+#### Streaming Flow
+
+1. **Token acquisition**: Optional REST call to `https://api.assemblyai.com/v2/realtime/token` to fetch a temporary streaming token.
+2. **WebSocket handshake**: Connect to `wss://streaming.assemblyai.com/v3/ws` with sample rate, model, and language query parameters; authenticate via header or token.
+3. **Audio loop**: Capture PCM16 audio (default 16 kHz mono), accumulate bytes until threshold, base64 encode, and send via WebSocket.
+4. **Transcription events**: Listen for `message_type = "FinalTranscript"` and `"PartialTranscript"` events; emit text to listeners and type into the focused application.
+5. **Heartbeat & keep-alive**: Periodically send `{"event": "ping"}` frames to keep the session active.
+
+#### Configuration
+
+- **API Key**: Required for token generation or direct auth
+- **Model**: Defaults to `"default"`, other AssemblyAI streaming models supported
+- **Language**: Optional BCP-47 code (e.g., `"en"`, `"es"`)
+- **Sample Rate**: Defaults to 16000 Hz; must match capture settings
+- **Channels**: Mono (1) recommended
+- **Chunk Duration**: Controls audio buffer size before sending (default 0.2 s)
+
+#### Failure Handling
+
+- Captures REST/WebSocket errors and marks `fatal_error` for irrecoverable authentication/config issues.
+- Emits descriptive messages via `emit_error()` so the tray icon and EngineManager can surface the failure and trigger fallbacks.
+
+#### Requirements
+
+- `websocket-client` Python package
+- Internet connectivity
+- Valid AssemblyAI API key with realtime access enabled
+- PulseAudio input path compatible with `parec`
