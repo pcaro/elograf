@@ -11,10 +11,9 @@ from typing import Callable, Dict, List, Optional
 import requests
 import websocket
 
-from eloGraf.audio_recorder import AudioRecorder
 from eloGraf.base_controller import EnumStateController
-from eloGraf.stt_engine import STTProcessRunner
 from eloGraf.input_simulator import type_text
+from eloGraf.streaming_runner_base import StreamingRunnerBase
 
 
 class AssemblyAIRealtimeState(Enum):
@@ -104,7 +103,7 @@ class AssemblyAIRealtimeController(EnumStateController[AssemblyAIRealtimeState])
         self._stop_requested = False
 
 
-class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
+class AssemblyAIRealtimeProcessRunner(StreamingRunnerBase):
     """Manages AssemblyAI realtime websocket session."""
 
     def __init__(
@@ -120,19 +119,21 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
         input_simulator: Optional[Callable[[str], None]] = None,
         pulse_device: Optional[str] = None,
     ) -> None:
+        super().__init__(
+            controller,
+            sample_rate=sample_rate,
+            channels=channels,
+            chunk_duration=chunk_duration,
+            input_simulator=input_simulator or type_text,
+        )
         self._controller = controller
         self._api_key = api_key
         self._model = model
         self._language = language
-        self._sample_rate = sample_rate
-        self._channels = channels
-        self._chunk_duration = chunk_duration
         self._input_simulator = input_simulator or type_text
         self._pulse_device = pulse_device
         self._ws_thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
         self._ws = None
-        self._audio_recorder: Optional[AudioRecorder] = None
         self._audio_buffer = bytearray()
         self._sample_width_bytes = 2
         self._bytes_per_commit = max(
@@ -143,27 +144,24 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
         self._session_active = False
         self.fatal_error = False
         self._use_direct_auth = False
+        self._ws_ready = threading.Event()
+        self._ws_failure = threading.Event()
 
-    def start(self, command, env: Optional[Dict[str, str]] = None) -> bool:  # command unused
-        if self.is_running():
-            logging.warning("AssemblyAI realtime is already running")
-            return False
-
-        self._controller.start()
-
+    def _preflight_checks(self) -> bool:
         if not self._api_key:
             logging.error("AssemblyAI API key is required")
             self._controller.emit_error("AssemblyAI API key is required")
-            self._controller.fail_to_start()
             return False
-
         try:
-            import websocket
+            import websocket  # noqa: F401
         except ImportError:
             logging.error("websocket-client is required for AssemblyAI realtime")
             self._controller.emit_error("websocket-client package is required")
-            self._controller.fail_to_start()
             return False
+        return True
+
+    def _initialize_connection(self) -> bool:
+        import websocket
 
         token = self._generate_token()
         headers = None
@@ -184,7 +182,6 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
             if not token:
                 logging.error("AssemblyAI realtime token request failed")
                 self._controller.emit_error("AssemblyAI realtime token request failed")
-                self._controller.fail_to_start()
                 return False
             query = [
                 f"sample_rate={self._sample_rate}",
@@ -196,7 +193,8 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
                 query.append(f"language_code={self._language}")
             ws_url = "wss://api.assemblyai.com/v2/realtime/ws?" + "&".join(query)
 
-        self._stop_event.clear()
+        self._ws_ready.clear()
+        self._ws_failure.clear()
         self._ws = websocket.WebSocketApp(
             ws_url,
             header=headers,
@@ -209,19 +207,38 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
         self._ws_thread = threading.Thread(target=self._ws.run_forever, daemon=True)
         self._ws_thread.start()
 
+        connected = self._ws_ready.wait(timeout=5)
+        if not connected or self._ws_failure.is_set():
+            return False
         return True
 
-    def stop(self) -> None:
-        if not self.is_running():
-            return
+    def _cleanup_connection(self) -> None:
+        if self._ws and self._audio_buffer:
+            try:
+                chunk = bytes(self._audio_buffer)
+                if self._use_direct_auth:
+                    import websocket
 
-        self._controller.stop_requested()
-        self._stop_event.set()
+                    self._ws.send(chunk, opcode=websocket.ABNF.OPCODE_BINARY)
+                else:
+                    audio_payload = base64.b64encode(chunk).decode("utf-8")
+                    self._ws.send(json.dumps({"audio_data": audio_payload}))
+            except Exception:  # pragma: no cover
+                pass
+
+        if self._ws and self._session_active:
+            try:
+                if self._use_direct_auth:
+                    self._ws.send(json.dumps({"type": "Terminate"}))
+                else:
+                    self._ws.send(json.dumps({"terminate_session": True}))
+            except Exception:  # pragma: no cover - defensive
+                pass
 
         if self._ws:
             try:
                 self._ws.close()
-            except Exception:
+            except Exception:  # pragma: no cover - defensive
                 pass
             self._ws = None
 
@@ -229,22 +246,45 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
             self._ws_thread.join(timeout=2)
             self._ws_thread = None
 
-        self._controller.handle_exit(0)
+        self._ws_ready.clear()
+        self._ws_failure.clear()
+        self._audio_buffer.clear()
+        self._session_active = False
 
-    def suspend(self) -> None:
-        if self.is_running():
-            self._controller.suspend_requested()
+    def _process_audio_chunk(self, audio_data: bytes) -> None:
+        if not self._ws:
+            return
 
-    def resume(self) -> None:
-        if self.is_running():
-            self._controller.resume_requested()
+        raw_audio = self._extract_raw_audio(audio_data)
+        self._audio_buffer.extend(raw_audio)
 
-    def poll(self) -> None:
-        # WebSocket runs in background thread
-        pass
+        while len(self._audio_buffer) >= self._bytes_per_commit:
+            chunk = bytes(self._audio_buffer[: self._bytes_per_commit])
+            del self._audio_buffer[: self._bytes_per_commit]
 
-    def is_running(self) -> bool:
-        return self._ws_thread is not None and self._ws_thread.is_alive()
+            try:
+                if self._use_direct_auth:
+                    import websocket
+
+                    self._ws.send(chunk, opcode=websocket.ABNF.OPCODE_BINARY)
+                else:
+                    audio_payload = base64.b64encode(chunk).decode("utf-8")
+                    self._ws.send(json.dumps({"audio_data": audio_payload}))
+                self._controller.set_transcribing()
+            except Exception as exc:  # pragma: no cover - defensive
+                logging.error("Failed to send audio chunk to AssemblyAI: %s", exc)
+                break
+        self._controller.set_recording()
+
+    def _create_audio_recorder(self):
+        from eloGraf.audio_recorder import AudioRecorder
+
+        return AudioRecorder(
+            sample_rate=self._sample_rate,
+            channels=self._channels,
+            backend="parec",
+            device=self._pulse_device,
+        )
 
     def _generate_token(self) -> Optional[str]:
         try:
@@ -308,10 +348,7 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
     def _on_open(self, ws) -> None:
         logging.info("AssemblyAI Realtime WebSocket connected")
         self._controller.transition_to("connecting")
-
-        # Start audio loop
-        audio_thread = threading.Thread(target=self._audio_loop, daemon=True)
-        audio_thread.start()
+        self._ws_ready.set()
         self._controller.transition_to("ready")
 
     def _on_message(self, ws, message: str) -> None:
@@ -354,85 +391,18 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
 
     def _on_error(self, ws, error) -> None:
         logging.error("AssemblyAI WebSocket error: %s", error)
+        self._ws_failure.set()
         if error:
             self._controller.emit_error(str(error))
+        self._failure_exit = True
 
     def _on_close(self, ws, close_status_code, close_msg) -> None:
         logging.info("AssemblyAI WebSocket closed: %s - %s", close_status_code, close_msg)
-        if not self._stop_event.is_set():
-            reason = f"AssemblyAI WebSocket closed unexpectedly: {close_status_code} - {close_msg}"
+        self._stop_event.set()
+        if close_status_code not in (1000, None):
+            reason = f"AssemblyAI WebSocket closed: {close_status_code} - {close_msg}"
             self._controller.emit_error(reason)
-            self._controller.handle_exit(1)
-
-    def _audio_loop(self) -> None:
-        try:
-            self._audio_recorder = AudioRecorder(
-                sample_rate=self._sample_rate,
-                channels=self._channels,
-                backend="parec",
-                device=self._pulse_device,
-            )
-            self._controller.transition_to("recording")
-            logging.info("AssemblyAI audio capture started")
-
-            while not self._stop_event.is_set():
-                if self._controller.is_suspended:
-                    time.sleep(0.1)
-                    continue
-
-                audio_data = self._audio_recorder.record_chunk(duration=self._chunk_duration)
-                if not audio_data:
-                    continue
-
-                raw_audio = self._extract_raw_audio(audio_data)
-                self._audio_buffer.extend(raw_audio)
-
-                if len(self._audio_buffer) >= self._bytes_per_commit and self._ws:
-                    chunk = bytes(self._audio_buffer[: self._bytes_per_commit])
-                    del self._audio_buffer[: self._bytes_per_commit]
-                    try:
-                        if self._use_direct_auth:
-                            self._ws.send(chunk, opcode=websocket.ABNF.OPCODE_BINARY)
-                        else:
-                            audio_payload = base64.b64encode(chunk).decode("utf-8")
-                            self._ws.send(json.dumps({"audio_data": audio_payload}))
-                        self._controller.transition_to("transcribing")
-                    except Exception as exc:
-                        logging.error("Failed to send audio chunk to AssemblyAI: %s", exc)
-                        break
-
-            # flush remaining audio
-            if self._audio_buffer and self._ws:
-                try:
-                    chunk = bytes(self._audio_buffer)
-                    if self._use_direct_auth:
-                        self._ws.send(chunk, opcode=websocket.ABNF.OPCODE_BINARY)
-                    else:
-                        audio_payload = base64.b64encode(chunk).decode("utf-8")
-                        self._ws.send(json.dumps({"audio_data": audio_payload}))
-                except Exception:
-                    pass
-        except Exception as exc:
-            logging.exception("AssemblyAI audio loop error")
-            self._controller.emit_error(f"AssemblyAI audio loop error: {exc}")
-            self._controller.handle_exit(1)
-        finally:
-            try:
-                if self._ws and self._session_active:
-                    if self._use_direct_auth:
-                        self._ws.send(json.dumps({"type": "Terminate"}))
-                    else:
-                        self._ws.send(json.dumps({"terminate_session": True}))
-            except Exception:
-                pass
+            self._failure_exit = True
 
     def _extract_raw_audio(self, wav_data: bytes) -> bytes:
         return wav_data[44:]
-
-        try:
-            run(["dotool", "type", text], check=True)
-        except (CalledProcessError, FileNotFoundError):
-            try:
-                run(["xdotool", "type", "--", text], check=True)
-            except (CalledProcessError, FileNotFoundError):
-                logging.warning("Neither dotool nor xdotool available for input simulation")
