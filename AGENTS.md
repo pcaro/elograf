@@ -1,106 +1,106 @@
-# Descripción del Proyecto
+# Project Description
 
-EloGraf es una utilidad de escritorio escrita en Python que facilita el dictado por voz en Linux integrándose con múltiples motores de reconocimiento de voz, entre ellos nerd-dictation, Whisper Docker, Google Cloud Speech y OpenAI Realtime. La aplicación ofrece una bandeja del sistema, atajos globales y una interfaz avanzada para configurar dispositivos de audio, comandos previos y posteriores, y parámetros específicos de cada motor STT.
+EloGraf is a desktop utility written in Python that facilitates voice dictation on Linux by integrating with multiple speech recognition engines, including nerd-dictation, Whisper Docker, Google Cloud Speech, and OpenAI Realtime. The application offers a system tray, global shortcuts, and an advanced interface for configuring audio devices, pre/post commands, and engine-specific parameters for each STT engine.
 
-## Capacidades principales
-- Lanzador gráfico y CLI para iniciar, detener, suspender y reanudar dictado
-- Gestión de modelos y descarga desde repositorios remotos
-- Persistencia de configuración mediante QSettings y soporte multilenguaje a través de Qt
-- Integración IPC (D-Bus/sockets locales) para coordinar con otros componentes del sistema
+## Main Capabilities
+- Graphical launcher and CLI to start, stop, suspend, and resume dictation
+- Model management and downloads from remote repositories
+- Configuration persistence via QSettings and multilanguage support through Qt
+- IPC integration (D-Bus/local sockets) to coordinate with other system components
 
-## Estructura técnica
-El código está organizado como un paquete Python con interfaz Qt (PyQt6), controladores específicos para cada motor de voz, un `SystemTrayIcon` que coordina el flujo de dictado y una batería de pruebas unitarias/funcionales en `tests/`. La distribución se gestiona con `pyproject.toml` y `setup.cfg`.
+## Technical Structure
+The code is organized as a Python package with Qt interface (PyQt6), specific controllers for each voice engine, a `SystemTrayIcon` that coordinates the dictation flow, and a battery of unit/functional tests in `tests/`. Distribution is managed with `pyproject.toml` and `setup.cfg`.
 
-### Interfaz abstracta STT
+### Abstract STT Interface
 
-Todos los motores implementan una interfaz común definida en `stt_engine.py`:
+All engines implement a common interface defined in `stt_engine.py`:
 
 **STTController (ABC)**:
-- `add_state_listener()`: Registrar callback para cambios de estado
-- `add_output_listener()`: Registrar callback para transcripciones
-- `add_exit_listener()`: Registrar callback para salida del proceso
-- `remove_exit_listener()`: Desregistrar callback de salida (previene condiciones de carrera)
-- `start()`, `stop_requested()`, `suspend_requested()`, `resume_requested()`: Control de ciclo de vida
+- `add_state_listener()`: Register callback for state changes
+- `add_output_listener()`: Register callback for transcriptions
+- `add_exit_listener()`: Register callback for process exit
+- `remove_exit_listener()`: Unregister exit callback (prevents race conditions)
+- `start()`, `stop_requested()`, `suspend_requested()`, `resume_requested()`: Lifecycle control
 
 **STTProcessRunner (ABC)**:
-- `start()`, `stop()`, `suspend()`, `resume()`: Gestión del proceso
-- `poll()`: Polling de eventos
-- `is_running()`: Estado del proceso
+- `start()`, `stop()`, `suspend()`, `resume()`: Process management
+- `poll()`: Event polling
+- `is_running()`: Process status
 
-#### Prevención de condiciones de carrera
+#### Race Condition Prevention
 
-El método `remove_exit_listener()` fue añadido para resolver una condición de carrera en el refresh del motor: cuando se crea un nuevo motor, el proceso del motor anterior puede terminar tarde y disparar su exit handler, incrementando incorrectamente el contador de fallos del motor nuevo. `EngineManager` ahora desregistra los callbacks del controlador antiguo antes de crear el nuevo, asegurando que eventos de procesos viejos no afecten el estado del motor nuevo.
+The `remove_exit_listener()` method was added to resolve a race condition in engine refresh: when a new engine is created, the previous engine's process may terminate late and fire its exit handler, incorrectly incrementing the failure counter for the new engine. `EngineManager` now unregisters callbacks from the old controller before creating the new one, ensuring that old process events don't affect the new engine's state.
 
-### Gestión de ciclo de vida con EngineManager
+### Lifecycle Management with EngineManager
 
-`engine_manager.py` gestiona la creación, refresh y recuperación ante fallos:
-- **Creación segura**: Desregistra listeners antiguos antes de crear nuevo motor
-- **Circuit breaker**: Cambia a motor de fallback tras fallos repetidos
-- **Retry con backoff exponencial**: Reintentos automáticos con delay incremental
-- **Timeout de refresh**: Timer de seguridad para bloqueos en apagado de motor
+`engine_manager.py` manages creation, refresh, and failure recovery:
+- **Safe creation**: Unregisters old listeners before creating new engine
+- **Circuit breaker**: Switches to fallback engine after repeated failures
+- **Retry with exponential backoff**: Automatic retries with incremental delay
+- **Refresh timeout**: Safety timer for engine shutdown deadlocks
 
-## Motores de reconocimiento de voz
+## Speech Recognition Engines
 
 ### OpenAI Realtime API
 
-La integración con OpenAI Realtime API se implementa en `openai_realtime_controller.py` y utiliza un modelo de comunicación basado en WebSocket para transcripción de voz en tiempo real.
+The OpenAI Realtime API integration is implemented in `openai_realtime_controller.py` and uses a WebSocket-based communication model for real-time voice transcription.
 
-#### Arquitectura
+#### Architecture
 
-La API de OpenAI Realtime utiliza dos conceptos de modelo distintos:
+The OpenAI Realtime API uses two distinct model concepts:
 
-1. **Modelo de sesión**: Define el comportamiento general de la conexión WebSocket
-   - Modelos disponibles: `gpt-4o-realtime-preview`, `gpt-4o-mini-realtime-preview`
-   - Se especifica en la URL de conexión WebSocket
-   - Controla el motor de conversación general
+1. **Session model**: Defines the general behavior of the WebSocket connection
+   - Available models: `gpt-4o-realtime-preview`, `gpt-4o-mini-realtime-preview`
+   - Specified in the WebSocket connection URL
+   - Controls the overall conversation engine
 
-2. **Modelo de transcripción**: Define el motor específico para transcribir audio a texto
-   - Modelos disponibles: `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`
-   - Se especifica en la configuración de `input_audio_transcription`
-   - Es independiente del modelo de sesión
+2. **Transcription model**: Defines the specific engine for transcribing audio to text
+   - Available models: `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`
+   - Specified in the `input_audio_transcription` configuration
+   - Independent of the session model
 
-#### Configuración de sesión
+#### Session Configuration
 
-La configuración inicial de la sesión se envía mediante un evento `session.update`:
+The initial session configuration is sent via a `session.update` event:
 
 ```python
 {
     "type": "session.update",
     "session": {
-        "input_audio_format": "pcm16",  # Formato: PCM 16-bit
+        "input_audio_format": "pcm16",  # Format: PCM 16-bit
         "input_audio_transcription": {
-            "model": "gpt-4o-transcribe"  # Modelo de transcripción
+            "model": "gpt-4o-transcribe"  # Transcription model
         },
         "turn_detection": {
             "type": "server_vad",
             "threshold": 0.5,
             "prefix_padding_ms": 300,
             "silence_duration_ms": 200,
-            "create_response": False  # Solo transcribir, no generar respuestas
+            "create_response": False  # Only transcribe, don't generate responses
         }
     }
 }
 ```
 
-#### Detección de actividad de voz (VAD)
+#### Voice Activity Detection (VAD)
 
-El servidor implementa VAD (Voice Activity Detection) automático que:
-- Detecta cuándo el usuario comienza y termina de hablar
-- Segmenta el audio en fragmentos lógicos
-- Elimina la necesidad de hacer commits manuales del buffer
-- Parámetros configurables:
-  - `threshold`: Umbral de energía para detectar voz (0.0-1.0)
-  - `prefix_padding_ms`: Milisegundos de audio previo a incluir
-  - `silence_duration_ms`: Duración de silencio para considerar fin de frase
+The server implements automatic VAD (Voice Activity Detection) which:
+- Detects when the user starts and stops speaking
+- Segments audio into logical fragments
+- Eliminates the need for manual buffer commits
+- Configurable parameters:
+  - `threshold`: Energy threshold for detecting speech (0.0-1.0)
+  - `prefix_padding_ms`: Milliseconds of prior audio to include
+  - `silence_duration_ms`: Silence duration to consider end of phrase
 
-#### Flujo de datos de audio
+#### Audio Data Flow
 
-1. **Captura**: Audio capturado de PulseAudio mediante `parec`
-   - Formato: PCM 16-bit, 16kHz, mono
-   - Chunks de 200ms (6400 bytes)
-   - Thread dedicado lee continuamente de parec
+1. **Capture**: Audio captured from PulseAudio via `parec`
+   - Format: PCM 16-bit, 16kHz, mono
+   - Chunks of 200ms (6400 bytes)
+   - Dedicated thread continuously reads from parec
 
-2. **Envío**: Cada chunk se envía como evento `input_audio_buffer.append`:
+2. **Send**: Each chunk is sent as an `input_audio_buffer.append` event:
 ```python
 {
     "type": "input_audio_buffer.append",
@@ -108,104 +108,104 @@ El servidor implementa VAD (Voice Activity Detection) automático que:
 }
 ```
 
-3. **Detección de voz**: El servidor VAD envía notificaciones:
-   - `input_audio_buffer.speech_started`: Detectó inicio de voz
-     - Incluye `audio_start_ms`: Timestamp del inicio
-     - Incluye `item_id`: ID del elemento de conversación
-   - `input_audio_buffer.speech_stopped`: Detectó fin de voz
-     - Incluye `audio_end_ms`: Timestamp del fin
-   - `input_audio_buffer.committed`: Buffer confirmado para procesamiento
-   - `conversation.item.created`: Elemento de conversación creado
+3. **Speech detection**: The server VAD sends notifications:
+   - `input_audio_buffer.speech_started`: Detected speech start
+     - Includes `audio_start_ms`: Start timestamp
+     - Includes `item_id`: Conversation item ID
+   - `input_audio_buffer.speech_stopped`: Detected speech end
+     - Includes `audio_end_ms`: End timestamp
+   - `input_audio_buffer.committed`: Buffer confirmed for processing
+   - `conversation.item.created`: Conversation item created
 
-4. **Transcripción**: El servidor procesa el audio y envía:
-   - `conversation.item.input_audio_transcription.delta`: Fragmentos de transcripción
-     - Se reciben múltiples deltas a medida que se procesa el audio
-     - Cada delta contiene `item_id`, `content_index` y `delta` (el texto)
-     - Ejemplo: "Hola", " buenos", " días", ",", " ¿", "qué", " tal", "?"
-   - `conversation.item.input_audio_transcription.completed`: Transcripción final
-     - Contiene el `transcript` completo: "Hola buenos días, ¿qué tal?"
-     - Incluye `usage` con contadores de tokens
+4. **Transcription**: The server processes audio and sends:
+   - `conversation.item.input_audio_transcription.delta`: Transcription fragments
+     - Multiple deltas are received as audio is processed
+     - Each delta contains `item_id`, `content_index` and `delta` (the text)
+     - Example: "Hello", " good", " morning", ",", " how", " are", " you", "?"
+   - `conversation.item.input_audio_transcription.completed`: Final transcription
+     - Contains the complete `transcript`: "Hello good morning, how are you?"
+     - Includes `usage` with token counters
 
-5. **Simulación de entrada**: El texto transcrito se escribe en el sistema
-   - Se usa `dotool` (preferido) o `xdotool` (fallback)
-   - El texto se escribe donde esté el cursor activo
+5. **Input simulation**: The transcribed text is written to the system
+   - Uses `dotool` (preferred) or `xdotool` (fallback)
+   - Text is written where the cursor is active
 
-#### Eventos principales
+#### Main Events
 
-| Evento | Dirección | Propósito |
-|--------|-----------|-----------|
-| `session.created` | Servidor → Cliente | Sesión creada con configuración por defecto |
-| `session.update` | Cliente → Servidor | Configurar sesión (transcripción, VAD, etc.) |
-| `session.updated` | Servidor → Cliente | Confirmación de configuración actualizada |
-| `input_audio_buffer.append` | Cliente → Servidor | Enviar chunk de audio |
-| `input_audio_buffer.speech_started` | Servidor → Cliente | VAD detectó inicio de voz |
-| `input_audio_buffer.speech_stopped` | Servidor → Cliente | VAD detectó fin de voz |
-| `input_audio_buffer.committed` | Servidor → Cliente | Buffer de audio confirmado para procesamiento |
-| `conversation.item.created` | Servidor → Cliente | Elemento de conversación creado |
-| `conversation.item.input_audio_transcription.delta` | Servidor → Cliente | Fragmento de transcripción |
-| `conversation.item.input_audio_transcription.completed` | Servidor → Cliente | Transcripción completa con texto final |
-| `error` | Servidor → Cliente | Notificación de error |
+| Event | Direction | Purpose |
+|-------|-----------|---------|
+| `session.created` | Server → Client | Session created with default configuration |
+| `session.update` | Client → Server | Configure session (transcription, VAD, etc.) |
+| `session.updated` | Server → Client | Confirmation of updated configuration |
+| `input_audio_buffer.append` | Client → Server | Send audio chunk |
+| `input_audio_buffer.speech_started` | Server → Client | VAD detected speech start |
+| `input_audio_buffer.speech_stopped` | Server → Client | VAD detected speech end |
+| `input_audio_buffer.committed` | Server → Client | Audio buffer confirmed for processing |
+| `conversation.item.created` | Server → Client | Conversation item created |
+| `conversation.item.input_audio_transcription.delta` | Server → Client | Transcription fragment |
+| `conversation.item.input_audio_transcription.completed` | Server → Client | Complete transcription with final text |
+| `error` | Server → Client | Error notification |
 
-#### Parámetros de audio
+#### Audio Parameters
 
-- **Sample rate**: 16000 Hz (requisito de la API)
-- **Canales**: 1 (mono)
-- **Formato**: PCM 16-bit
-- **Tamaño mínimo de chunk**: 100ms de audio
-- **Codificación para envío**: Base64
+- **Sample rate**: 16000 Hz (API requirement)
+- **Channels**: 1 (mono)
+- **Format**: PCM 16-bit
+- **Minimum chunk size**: 100ms of audio
+- **Encoding for sending**: Base64
 
-#### Configuración en EloGraf
+#### Configuration in EloGraf
 
-Los parámetros de OpenAI Realtime se configuran en la pestaña "OpenAI" del diálogo de configuración avanzada:
+OpenAI Realtime parameters are configured in the "OpenAI" tab of the advanced configuration dialog:
 
-- **API Key**: Clave de autenticación de OpenAI
-- **Model**: Selección del modelo de sesión (dropdown con opciones regular y mini)
-- **Language**: Código de idioma para transcripción (ej: "es", "en-US")
-- **VAD Threshold**: Sensibilidad de detección de voz
-- **VAD Prefix Padding**: Contexto previo en milisegundos
-- **VAD Silence Duration**: Duración de silencio para segmentar
-- **Sample Rate**: Tasa de muestreo (16000 Hz)
-- **Channels**: Número de canales (1 = mono)
+- **API Key**: OpenAI authentication key
+- **Model**: Session model selection (dropdown with regular and mini options)
+- **Language**: Language code for transcription (e.g., "es", "en-US")
+- **VAD Threshold**: Speech detection sensitivity
+- **VAD Prefix Padding**: Prior context in milliseconds
+- **VAD Silence Duration**: Silence duration for segmentation
+- **Sample Rate**: Sampling rate (16000 Hz)
+- **Channels**: Number of channels (1 = mono)
 
-#### Implementación
+#### Implementation
 
-El controlador `OpenAIRealtimeController` hereda de `BaseSTTEngine` e implementa:
+The `OpenAIRealtimeController` inherits from `BaseSTTEngine` and implements:
 
-1. **Conexión WebSocket**: Establece conexión con `wss://api.openai.com/v1/realtime`
-2. **Thread de audio**: Captura audio de PulseAudio en thread separado
-3. **Thread de recepción**: Procesa eventos del servidor en thread separado
-4. **Manejo de errores**: Reconexión automática opcional
-5. **Simulación de entrada**: Envía texto transcrito al sistema mediante `ydotool` o `xdotool`
+1. **WebSocket connection**: Establishes connection to `wss://api.openai.com/v1/realtime`
+2. **Audio thread**: Captures audio from PulseAudio in separate thread
+3. **Reception thread**: Processes server events in separate thread
+4. **Error handling**: Optional automatic reconnection
+5. **Input simulation**: Sends transcribed text to the system via `ydotool` or `xdotool`
 
-#### Ejemplo de flujo completo
+#### Complete Flow Example
 
-Un ejemplo real de transcripción de "Hola buenos días, ¿qué tal?":
+A real example of transcribing "Hello good morning, how are you?":
 
-1. Cliente envía chunks de audio continuamente (cada 200ms)
-2. Servidor detecta voz: `input_audio_buffer.speech_started` (audio_start_ms: 308)
-3. Cliente sigue enviando audio mientras el usuario habla
-4. Servidor detecta silencio: `input_audio_buffer.speech_stopped` (audio_end_ms: 2368)
-5. Servidor confirma: `input_audio_buffer.committed`
-6. Servidor crea elemento: `conversation.item.created`
-7. Servidor envía transcripción incremental:
-   - Delta: "Hola"
-   - Delta: " buenos"
-   - Delta: " días"
+1. Client sends audio chunks continuously (every 200ms)
+2. Server detects speech: `input_audio_buffer.speech_started` (audio_start_ms: 308)
+3. Client continues sending audio while user speaks
+4. Server detects silence: `input_audio_buffer.speech_stopped` (audio_end_ms: 2368)
+5. Server confirms: `input_audio_buffer.committed`
+6. Server creates item: `conversation.item.created`
+7. Server sends incremental transcription:
+   - Delta: "Hello"
+   - Delta: " good"
+   - Delta: " morning"
    - Delta: ","
-   - Delta: " ¿"
-   - Delta: "qué"
-   - Delta: " tal"
+   - Delta: " how"
+   - Delta: " are"
+   - Delta: " you"
    - Delta: "?"
-8. Servidor envía transcripción completa: `conversation.item.input_audio_transcription.completed`
-   - transcript: "Hola buenos días, ¿qué tal?"
-   - usage: 31 tokens totales (21 input, 10 output)
-9. Cliente escribe el texto en el sistema usando `dotool`/`xdotool`
+8. Server sends complete transcription: `conversation.item.input_audio_transcription.completed`
+   - transcript: "Hello good morning, how are you?"
+   - usage: 31 total tokens (21 input, 10 output)
+9. Client writes the text to the system using `dotool`/`xdotool`
 
-**Duración del ejemplo**: ~2 segundos de audio, procesamiento casi instantáneo
+**Example duration**: ~2 seconds of audio, nearly instant processing
 
-#### Costos aproximados
+#### Approximate Costs
 
-- **gpt-4o-realtime-preview**: ~$5-10 por hora de audio
-- **gpt-4o-mini-realtime-preview**: ~$1-2 por hora de audio
+- **gpt-4o-realtime-preview**: ~$5-10 per hour of audio
+- **gpt-4o-mini-realtime-preview**: ~$1-2 per hour of audio
 
-Los modelos mini son más económicos pero pueden tener menor precisión en acentos o ruido de fondo.
+Mini models are more economical but may have lower accuracy with accents or background noise.
