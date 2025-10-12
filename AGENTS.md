@@ -1,12 +1,5 @@
 # Descripción del Proyecto
 
-> **⚠️ DOCUMENTACIÓN DESACTUALIZADA**: Este archivo necesita actualización para reflejar cambios recientes:
-> - Añadido método `remove_exit_listener()` a la interfaz STTController
-> - Corregida condición de carrera en gestión de exit handlers durante refresh del motor
-> - Todas las implementaciones de controladores ahora soportan desregistro de listeners
->
-> Ver commit 3feed86 para detalles.
-
 EloGraf es una utilidad de escritorio escrita en Python que facilita el dictado por voz en Linux integrándose con múltiples motores de reconocimiento de voz, entre ellos nerd-dictation, Whisper Docker, Google Cloud Speech y OpenAI Realtime. La aplicación ofrece una bandeja del sistema, atajos globales y una interfaz avanzada para configurar dispositivos de audio, comandos previos y posteriores, y parámetros específicos de cada motor STT.
 
 ## Capacidades principales
@@ -17,6 +10,34 @@ EloGraf es una utilidad de escritorio escrita en Python que facilita el dictado 
 
 ## Estructura técnica
 El código está organizado como un paquete Python con interfaz Qt (PyQt6), controladores específicos para cada motor de voz, un `SystemTrayIcon` que coordina el flujo de dictado y una batería de pruebas unitarias/funcionales en `tests/`. La distribución se gestiona con `pyproject.toml` y `setup.cfg`.
+
+### Interfaz abstracta STT
+
+Todos los motores implementan una interfaz común definida en `stt_engine.py`:
+
+**STTController (ABC)**:
+- `add_state_listener()`: Registrar callback para cambios de estado
+- `add_output_listener()`: Registrar callback para transcripciones
+- `add_exit_listener()`: Registrar callback para salida del proceso
+- `remove_exit_listener()`: Desregistrar callback de salida (previene condiciones de carrera)
+- `start()`, `stop_requested()`, `suspend_requested()`, `resume_requested()`: Control de ciclo de vida
+
+**STTProcessRunner (ABC)**:
+- `start()`, `stop()`, `suspend()`, `resume()`: Gestión del proceso
+- `poll()`: Polling de eventos
+- `is_running()`: Estado del proceso
+
+#### Prevención de condiciones de carrera
+
+El método `remove_exit_listener()` fue añadido para resolver una condición de carrera en el refresh del motor: cuando se crea un nuevo motor, el proceso del motor anterior puede terminar tarde y disparar su exit handler, incrementando incorrectamente el contador de fallos del motor nuevo. `EngineManager` ahora desregistra los callbacks del controlador antiguo antes de crear el nuevo, asegurando que eventos de procesos viejos no afecten el estado del motor nuevo.
+
+### Gestión de ciclo de vida con EngineManager
+
+`engine_manager.py` gestiona la creación, refresh y recuperación ante fallos:
+- **Creación segura**: Desregistra listeners antiguos antes de crear nuevo motor
+- **Circuit breaker**: Cambia a motor de fallback tras fallos repetidos
+- **Retry con backoff exponencial**: Reintentos automáticos con delay incremental
+- **Timeout de refresh**: Timer de seguridad para bloqueos en apagado de motor
 
 ## Motores de reconocimiento de voz
 

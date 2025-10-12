@@ -1,12 +1,5 @@
 # Elograf
 
-> **⚠️ DOCUMENTATION OUTDATED**: This file needs updating to reflect recent changes:
-> - Added `remove_exit_listener()` method to STTController interface
-> - Fixed race condition in engine refresh exit handler management
-> - All controller implementations now support listener unregistration
->
-> See commit 3feed86 for details.
-
 **Multi-engine voice recognition utility**
 
 Elograf is a desktop application that provides a graphical interface for multiple speech-to-text engines. Originally designed for [nerd-dictation](https://github.com/ideasman42/nerd-dictation), it now supports multiple STT backends including Whisper Docker, Google Cloud Speech, and OpenAI Realtime API. It runs in your system tray and offers easy control over dictation through an intuitive icon and menu system.
@@ -359,9 +352,10 @@ Elograf uses an abstract interface pattern to support multiple STT engines throu
 │  ├─ add_state_listener()      ├─ start()                    │
 │  ├─ add_output_listener()     ├─ stop()                     │
 │  ├─ add_exit_listener()       ├─ suspend()                  │
-│  ├─ start()                   ├─ resume()                   │
-│  ├─ stop_requested()          ├─ poll()                     │
-│  ├─ suspend_requested()       └─ is_running()               │
+│  ├─ remove_exit_listener()    ├─ resume()                   │
+│  ├─ start()                   ├─ poll()                     │
+│  ├─ stop_requested()          └─ is_running()               │
+│  ├─ suspend_requested()                                      │
 │  └─ resume_requested()                                       │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -385,8 +379,13 @@ STTController                    STTProcessRunner
      │                                  │   ├── Audio recording (pyaudio)
      │                                  │   └── Credentials management
      │                                  │
-     └── OpenAIRealtimeController       └── OpenAIRealtimeProcessRunner
-         └── OpenAIRealtimeState            ├── WebSocket client
+     ├── OpenAIRealtimeController       ├── OpenAIRealtimeProcessRunner
+     │   └── OpenAIRealtimeState        │   ├── WebSocket client
+     │                                  │   ├── Audio recording (pyaudio)
+     │                                  │   └── Real-time streaming
+     │                                  │
+     └── AssemblyAIRealtimeController   └── AssemblyAIRealtimeProcessRunner
+         └── AssemblyAIRealtimeState        ├── WebSocket client
                                             ├── Audio recording (pyaudio)
                                             └── Real-time streaming
 ```
@@ -455,7 +454,11 @@ IDLE (on stop)
 #### `stt_engine.py`
 Abstract base classes defining the interface contract:
 - **STTController**: State management and event notification
+  - Provides listener registration/unregistration to prevent race conditions
+  - `remove_exit_listener()` prevents old controller exit events from affecting new engines
 - **STTProcessRunner**: Process lifecycle and audio handling
+
+**Race Condition Prevention**: When refreshing engines, old controller exit handlers could fire after a new engine was created, incorrectly incrementing the failure counter for the new engine. The `remove_exit_listener()` method allows EngineManager to unregister callbacks from the old controller before creating a new one, ensuring old process exit events don't affect new engine state.
 
 #### `stt_factory.py`
 Factory functions for engine creation:
@@ -489,11 +492,21 @@ Factory functions for engine creation:
 - Real-time partial transcriptions
 - Base64 audio encoding
 
+#### `engine_manager.py`
+Manages STT engine lifecycle, configuration, and failure recovery:
+- **Engine Creation**: Creates engines via factory with proper listener registration
+- **Refresh Logic**: Safely replaces running engines with updated configuration
+  - Unregisters old controller callbacks before creating new engine
+  - Prevents race conditions from late exit events
+- **Failure Handling**: Implements circuit breaker pattern with fallback chain
+- **Retry Logic**: Exponential backoff for transient failures
+- **Timeout Protection**: Safety timer for stuck engine shutdowns
+
 #### `tray_icon.py`
 System tray interface that:
 1. Loads settings
-2. Creates appropriate STT engine via factory
-3. Connects to state/output/exit listeners
+2. Creates EngineManager with appropriate configuration
+3. Delegates engine lifecycle to EngineManager
 4. Updates icon based on state
 5. Handles user interactions
 
@@ -569,10 +582,12 @@ elograf/
 ├── eloGraf/                            # Main application code
 │   ├── stt_engine.py                   # Abstract STT interface (ABC)
 │   ├── stt_factory.py                  # Factory for creating engines
+│   ├── engine_manager.py               # Engine lifecycle and failure recovery
 │   ├── nerd_controller.py              # nerd-dictation implementation
 │   ├── whisper_docker_controller.py    # Whisper Docker implementation
 │   ├── google_cloud_speech_controller.py  # Google Cloud Speech implementation
 │   ├── openai_realtime_controller.py   # OpenAI Realtime implementation
+│   ├── assemblyai_realtime_controller.py  # AssemblyAI Realtime implementation
 │   ├── tray_icon.py                    # System tray interface
 │   ├── settings.py                     # Persistent configuration
 │   ├── dialogs.py                      # Configuration dialogs
@@ -582,7 +597,9 @@ elograf/
 │   ├── test_nerd_controller.py
 │   ├── test_whisper_docker_controller.py
 │   ├── test_google_cloud_speech_controller.py
-│   └── test_openai_realtime_controller.py
+│   ├── test_openai_realtime_controller.py
+│   ├── test_engine_manager.py          # Engine manager tests
+│   └── test_integration_workflows.py   # End-to-end integration tests
 └── pyproject.toml                      # Project configuration
 ```
 
