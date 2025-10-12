@@ -1,5 +1,12 @@
 # Elograf
 
+> **⚠️ DOCUMENTATION OUTDATED**: This file needs updating to reflect recent changes:
+> - Added `remove_exit_listener()` method to STTController interface
+> - Fixed race condition in engine refresh exit handler management
+> - All controller implementations now support listener unregistration
+>
+> See commit 3feed86 for details.
+
 **Multi-engine voice recognition utility**
 
 Elograf is a desktop application that provides a graphical interface for multiple speech-to-text engines. Originally designed for [nerd-dictation](https://github.com/ideasman42/nerd-dictation), it now supports multiple STT backends including Whisper Docker, Google Cloud Speech, and OpenAI Realtime API. It runs in your system tray and offers easy control over dictation through an intuitive icon and menu system.

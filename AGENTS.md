@@ -1,5 +1,12 @@
 # Descripción del Proyecto
 
+> **⚠️ DOCUMENTACIÓN DESACTUALIZADA**: Este archivo necesita actualización para reflejar cambios recientes:
+> - Añadido método `remove_exit_listener()` a la interfaz STTController
+> - Corregida condición de carrera en gestión de exit handlers durante refresh del motor
+> - Todas las implementaciones de controladores ahora soportan desregistro de listeners
+>
+> Ver commit 3feed86 para detalles.
+
 EloGraf es una utilidad de escritorio escrita en Python que facilita el dictado por voz en Linux integrándose con múltiples motores de reconocimiento de voz, entre ellos nerd-dictation, Whisper Docker, Google Cloud Speech y OpenAI Realtime. La aplicación ofrece una bandeja del sistema, atajos globales y una interfaz avanzada para configurar dispositivos de audio, comandos previos y posteriores, y parámetros específicos de cada motor STT.
 
 ## Capacidades principales
