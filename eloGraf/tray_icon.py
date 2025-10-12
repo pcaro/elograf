@@ -411,7 +411,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.state_machine.set_idle()
 
     def show_config_dialog(self) -> None:
-        adv_window = AdvancedUI()
+        adv_window = AdvancedUI(self.settings)
 
         # General settings
         adv_window.ui.precommand.setText(self.settings.precommand)
@@ -436,47 +436,6 @@ class SystemTrayIcon(QSystemTrayIcon):
         adv_window.ui.digits.setChecked(self.settings.digits)
         adv_window.ui.useSeparator.setChecked(self.settings.useSeparator)
         adv_window.ui.freecommand.setText(self.settings.freeCommand)
-
-        # Whisper Docker settings
-        adv_window.ui.whisper_model_cb.setCurrentText(self.settings.whisperModel)
-        adv_window.ui.whisper_language_le.setText(self.settings.whisperLanguage)
-        adv_window.ui.whisper_port_le.setText(str(self.settings.whisperPort))
-        adv_window.ui.whisper_chunk_le.setText(str(self.settings.whisperChunkDuration))
-        adv_window.ui.whisper_sample_rate_le.setText(str(self.settings.whisperSampleRate))
-        adv_window.ui.whisper_channels_le.setText(str(self.settings.whisperChannels))
-        adv_window.ui.whisper_vad_cb.setChecked(self.settings.whisperVadEnabled)
-        adv_window.ui.whisper_vad_threshold_le.setText(str(self.settings.whisperVadThreshold))
-        adv_window.ui.whisper_auto_reconnect_cb.setChecked(self.settings.whisperAutoReconnect)
-
-        # Google Cloud Speech settings
-        adv_window.ui.gcs_credentials_le.setText(self.settings.googleCloudCredentialsPath)
-        adv_window.ui.gcs_project_id_le.setText(self.settings.googleCloudProjectId)
-        adv_window.ui.gcs_language_code_le.setText(self.settings.googleCloudLanguageCode)
-        adv_window.ui.gcs_model_le.setText(self.settings.googleCloudModel)
-        adv_window.ui.gcs_sample_rate_le.setText(str(self.settings.googleCloudSampleRate))
-        adv_window.ui.gcs_channels_le.setText(str(self.settings.googleCloudChannels))
-        adv_window.ui.gcs_vad_cb.setChecked(self.settings.googleCloudVadEnabled)
-        adv_window.ui.gcs_vad_threshold_le.setText(str(self.settings.googleCloudVadThreshold))
-
-        # OpenAI Realtime settings
-        adv_window.ui.openai_api_key_le.setText(self.settings.openaiApiKey)
-        adv_window.ui.openai_model_cb.setCurrentText(self.settings.openaiModel)
-        adv_window.ui.openai_api_version_le.setText(self.settings.openaiApiVersion)
-        adv_window.ui.openai_sample_rate_le.setText(str(self.settings.openaiSampleRate))
-        adv_window.ui.openai_channels_le.setText(str(self.settings.openaiChannels))
-        adv_window.ui.openai_vad_cb.setChecked(self.settings.openaiVadEnabled)
-        adv_window.ui.openai_vad_threshold_le.setText(str(self.settings.openaiVadThreshold))
-        adv_window.ui.openai_vad_prefix_le.setText(str(self.settings.openaiVadPrefixPaddingMs))
-        adv_window.ui.openai_vad_silence_le.setText(str(self.settings.openaiVadSilenceDurationMs))
-        adv_window.ui.openai_language_le.setText(self.settings.openaiLanguage)
-
-        # AssemblyAI settings
-        if hasattr(adv_window.ui, "assembly_api_key_le"):
-            adv_window.ui.assembly_api_key_le.setText(getattr(self.settings, "assemblyApiKey", ""))
-            adv_window.ui.assembly_model_le.setText(getattr(self.settings, "assemblyModel", "default"))
-            adv_window.ui.assembly_language_le.setText(getattr(self.settings, "assemblyLanguage", ""))
-            adv_window.ui.assembly_sample_rate_le.setText(str(getattr(self.settings, "assemblySampleRate", 16000)))
-            adv_window.ui.assembly_channels_le.setText(str(getattr(self.settings, "assemblyChannels", 1)))
 
         # Shortcuts
         adv_window.beginShortcut.setKeySequence(self.settings.beginShortcut)
@@ -513,93 +472,6 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.settings.useSeparator = adv_window.ui.useSeparator.isChecked()
             self.settings.freeCommand = adv_window.ui.freecommand.text()
 
-            # Whisper Docker settings
-            self.settings.whisperModel = adv_window.ui.whisper_model_cb.currentText()
-            self.settings.whisperLanguage = adv_window.ui.whisper_language_le.text()
-            try:
-                self.settings.whisperPort = int(adv_window.ui.whisper_port_le.text())
-            except (ValueError, TypeError):
-                self.settings.whisperPort = 9000
-            try:
-                self.settings.whisperChunkDuration = float(adv_window.ui.whisper_chunk_le.text())
-            except (ValueError, TypeError):
-                self.settings.whisperChunkDuration = 5.0
-            try:
-                self.settings.whisperSampleRate = int(adv_window.ui.whisper_sample_rate_le.text())
-            except (ValueError, TypeError):
-                self.settings.whisperSampleRate = 16000
-            try:
-                self.settings.whisperChannels = int(adv_window.ui.whisper_channels_le.text())
-            except (ValueError, TypeError):
-                self.settings.whisperChannels = 1
-            self.settings.whisperVadEnabled = adv_window.ui.whisper_vad_cb.isChecked()
-            try:
-                self.settings.whisperVadThreshold = float(adv_window.ui.whisper_vad_threshold_le.text())
-            except (ValueError, TypeError):
-                self.settings.whisperVadThreshold = 500.0
-            self.settings.whisperAutoReconnect = adv_window.ui.whisper_auto_reconnect_cb.isChecked()
-
-            # Google Cloud Speech settings
-            self.settings.googleCloudCredentialsPath = adv_window.ui.gcs_credentials_le.text()
-            self.settings.googleCloudProjectId = adv_window.ui.gcs_project_id_le.text()
-            self.settings.googleCloudLanguageCode = adv_window.ui.gcs_language_code_le.text()
-            self.settings.googleCloudModel = adv_window.ui.gcs_model_le.text()
-            try:
-                self.settings.googleCloudSampleRate = int(adv_window.ui.gcs_sample_rate_le.text())
-            except (ValueError, TypeError):
-                self.settings.googleCloudSampleRate = 16000
-            try:
-                self.settings.googleCloudChannels = int(adv_window.ui.gcs_channels_le.text())
-            except (ValueError, TypeError):
-                self.settings.googleCloudChannels = 1
-            self.settings.googleCloudVadEnabled = adv_window.ui.gcs_vad_cb.isChecked()
-            try:
-                self.settings.googleCloudVadThreshold = float(adv_window.ui.gcs_vad_threshold_le.text())
-            except (ValueError, TypeError):
-                self.settings.googleCloudVadThreshold = 500.0
-
-            # OpenAI Realtime settings
-            self.settings.openaiApiKey = adv_window.ui.openai_api_key_le.text()
-            self.settings.openaiModel = adv_window.ui.openai_model_cb.currentText()
-            self.settings.openaiApiVersion = adv_window.ui.openai_api_version_le.text()
-            try:
-                self.settings.openaiSampleRate = int(adv_window.ui.openai_sample_rate_le.text())
-            except (ValueError, TypeError):
-                self.settings.openaiSampleRate = 16000
-            try:
-                self.settings.openaiChannels = int(adv_window.ui.openai_channels_le.text())
-            except (ValueError, TypeError):
-                self.settings.openaiChannels = 1
-            self.settings.openaiVadEnabled = adv_window.ui.openai_vad_cb.isChecked()
-            try:
-                self.settings.openaiVadThreshold = float(adv_window.ui.openai_vad_threshold_le.text())
-            except (ValueError, TypeError):
-                self.settings.openaiVadThreshold = 0.5
-            try:
-                self.settings.openaiVadPrefixPaddingMs = int(adv_window.ui.openai_vad_prefix_le.text())
-            except (ValueError, TypeError):
-                self.settings.openaiVadPrefixPaddingMs = 300
-            try:
-                self.settings.openaiVadSilenceDurationMs = int(adv_window.ui.openai_vad_silence_le.text())
-            except (ValueError, TypeError):
-                self.settings.openaiVadSilenceDurationMs = 200
-            self.settings.openaiLanguage = adv_window.ui.openai_language_le.text()
-
-            # AssemblyAI settings
-            if hasattr(adv_window.ui, "assembly_api_key_le"):
-                self.settings.assemblyApiKey = adv_window.ui.assembly_api_key_le.text()
-                model_text = adv_window.ui.assembly_model_le.text().strip()
-                self.settings.assemblyModel = model_text or "default"
-                self.settings.assemblyLanguage = adv_window.ui.assembly_language_le.text().strip()
-                try:
-                    self.settings.assemblySampleRate = int(adv_window.ui.assembly_sample_rate_le.text())
-                except (ValueError, TypeError):
-                    self.settings.assemblySampleRate = 16000
-                try:
-                    self.settings.assemblyChannels = int(adv_window.ui.assembly_channels_le.text())
-                except (ValueError, TypeError):
-                    self.settings.assemblyChannels = 1
-
             # Shortcuts
             self.settings.beginShortcut = adv_window.beginShortcut.keySequence().toString()
             self.settings.endShortcut = adv_window.endShortcut.keySequence().toString()
@@ -609,6 +481,21 @@ class SystemTrayIcon(QSystemTrayIcon):
 
             # STT Engine
             self.settings.sttEngine = adv_window.ui.stt_engine_cb.currentText()
+
+            # Engine-specific settings from dynamic tabs
+            from eloGraf.engine_settings_registry import get_all_engine_ids
+
+            for engine_id in get_all_engine_ids():
+                # Skip nerd-dictation as its controls live in the General tab
+                if engine_id == "nerd-dictation":
+                    continue
+                engine_settings = adv_window.get_engine_settings_dataclass(engine_id)
+                if engine_settings is None:
+                    continue
+                try:
+                    self.settings.update_from_dataclass(engine_settings)
+                except Exception as exc:  # pragma: no cover - defensive
+                    logging.debug("Failed to update settings for %s: %s", engine_id, exc)
 
             self.settings.save()
             self.settings.load()

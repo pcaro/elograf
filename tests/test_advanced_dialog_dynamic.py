@@ -75,3 +75,33 @@ def test_engine_tab_switching(qt_app):
     whisper_tab = dialog.engine_tabs["whisper-docker"]
 
     assert current_tab == whisper_tab
+
+
+def test_advanced_dialog_populates_settings_instance(qt_app):
+    """AdvancedUI should pre-fill dynamic tabs with existing settings values."""
+    import dataclasses
+    from eloGraf.dialogs import AdvancedUI
+    from eloGraf.engine_settings_registry import get_all_engine_ids, get_engine_settings_class
+
+    class DummySettings:
+        def __init__(self):
+            self._cache = {
+                engine_id: get_engine_settings_class(engine_id)()
+                for engine_id in get_all_engine_ids()
+            }
+            self._cache["openai-realtime"].api_key = "secret-key"
+
+        def get_engine_settings(self, engine_type: str):
+            cls = get_engine_settings_class(engine_type)
+            instance = self._cache.get(engine_type, cls())
+            return dataclasses.replace(instance)
+
+    dialog = AdvancedUI(DummySettings())
+
+    openai_tab = dialog.engine_tabs["openai-realtime"]
+    api_widget = openai_tab.widgets_map["api_key"]
+    assert api_widget.text() == "secret-key"
+
+    api_widget.setText("new-key")
+    updated = dialog.get_engine_settings_dataclass("openai-realtime")
+    assert updated.api_key == "new-key"

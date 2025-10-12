@@ -13,7 +13,7 @@ import logging
 import os
 import urllib.error
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from subprocess import run
 import json
@@ -22,11 +22,12 @@ from PyQt6.QtWidgets import (
     QDialog,
     QKeySequenceEdit,
     QLabel,
+    QWidget,
 )
 
 import eloGraf.advanced as advanced  # type: ignore
 
-from eloGraf.ui_generator import generate_settings_tab
+from eloGraf.ui_generator import generate_settings_tab, read_settings_from_tab
 from eloGraf.engine_settings_registry import (
     get_all_engine_ids,
     get_engine_settings_class,
@@ -122,11 +123,17 @@ def get_pulseaudio_sources() -> List[Tuple[str, str]]:
     return []
 
 
+from eloGraf.settings import Settings
+
+
 class AdvancedUI(QDialog):
-    def __init__(self) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         super().__init__()
         self.ui = advanced.Ui_Dialog()
         self.ui.setupUi(self)
+        self._settings_ref = settings
+        self.engine_tabs: Dict[str, QWidget] = {}
+        self.engine_settings_classes: Dict[str, type] = {}
         self._add_shortcuts_config()
         self._populate_audio_devices()
 
@@ -170,7 +177,13 @@ class AdvancedUI(QDialog):
                 continue
 
             # Generate tab from settings metadata
-            tab_widget = generate_settings_tab(settings_class)
+            instance = None
+            if self._settings_ref is not None:
+                try:
+                    instance = self._settings_ref.get_engine_settings(engine_id)
+                except Exception as exc:  # pragma: no cover - defensive
+                    logging.debug("Failed to load settings for %s: %s", engine_id, exc)
+            tab_widget = generate_settings_tab(settings_class, instance)
 
             # Add tab to dialog
             display_name = get_engine_display_name(engine_id)
@@ -181,6 +194,7 @@ class AdvancedUI(QDialog):
 
             # Store reference
             self.engine_tabs[engine_id] = tab_widget
+            self.engine_settings_classes[engine_id] = settings_class
 
     def _populate_engine_dropdown(self) -> None:
         """Populate the engine dropdown with all registered engines."""
@@ -191,6 +205,14 @@ class AdvancedUI(QDialog):
         for engine_id in get_all_engine_ids():
             display_name = get_engine_display_name(engine_id)
             self.ui.stt_engine_cb.addItem(engine_id)
+
+    def get_engine_settings_dataclass(self, engine_id: str):
+        """Return dataclass instance built from the current tab values."""
+        tab = self.engine_tabs.get(engine_id)
+        settings_class = self.engine_settings_classes.get(engine_id)
+        if not tab or not settings_class:
+            return None
+        return read_settings_from_tab(tab, settings_class)
 
     def _on_stt_engine_changed(self, engine: str):
         """Handle engine selection change."""

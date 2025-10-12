@@ -116,7 +116,7 @@ def create_widget_from_field(field: Field, value: Any) -> QWidget:
         return widget
 
 
-def generate_settings_tab(settings_class: Type) -> QWidget:
+def generate_settings_tab(settings_class: Type, instance: Any | None = None) -> QWidget:
     """Generate a complete settings tab from a dataclass.
 
     Args:
@@ -138,8 +138,8 @@ def generate_settings_tab(settings_class: Type) -> QWidget:
     form_layout = QFormLayout()
     form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
-    # Create default instance to get default values
-    default_instance = settings_class()
+    # Use provided instance or fall back to defaults
+    settings_instance = instance if instance is not None else settings_class()
 
     # Store widgets for later value reading
     widgets_map = {}
@@ -149,8 +149,8 @@ def generate_settings_tab(settings_class: Type) -> QWidget:
         if not field.metadata:
             continue
 
-        # Get default value
-        default_value = getattr(default_instance, field.name)
+        # Get current value from instance
+        default_value = getattr(settings_instance, field.name, None)
 
         # Create widget
         widget = create_widget_from_field(field, default_value)

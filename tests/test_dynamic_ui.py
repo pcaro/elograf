@@ -172,6 +172,21 @@ def test_create_action_button_from_metadata(qt_app):
     assert widget.text() == "Click Me"
 
 
+def test_generate_settings_tab_uses_instance_values(qt_app):
+    """Tabs should reflect values from an existing settings instance."""
+    from eloGraf.ui_generator import generate_settings_tab
+    from eloGraf.engines.openai.settings import OpenAISettings
+
+    instance = OpenAISettings(api_key="secret", language="es")
+    tab = generate_settings_tab(OpenAISettings, instance)
+
+    api_widget = tab.widgets_map["api_key"]
+    language_widget = tab.widgets_map["language"]
+
+    assert api_widget.text() == "secret"
+    assert language_widget.text() == "es"
+
+
 def test_readonly_text_widget(qt_app):
     """Test creating a readonly text widget."""
     from eloGraf.ui_generator import create_widget_from_field
