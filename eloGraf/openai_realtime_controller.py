@@ -59,6 +59,12 @@ class OpenAIRealtimeController(STTController):
     def add_exit_listener(self, callback: ExitListener) -> None:
         self._exit_listeners.append(callback)
 
+    def remove_exit_listener(self, callback: ExitListener) -> None:
+        try:
+            self._exit_listeners.remove(callback)
+        except ValueError:
+            pass
+
     def start(self) -> None:
         self._stop_requested = False
         self.transition_to("starting")

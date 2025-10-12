@@ -30,6 +30,11 @@ class STTController(ABC):
         pass
 
     @abstractmethod
+    def remove_exit_listener(self, callback: ExitListener) -> None:
+        """Unregister an exit callback."""
+        pass
+
+    @abstractmethod
     def start(self) -> None:
         """Signal that the STT process is starting."""
         pass
