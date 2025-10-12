@@ -6,7 +6,7 @@ from subprocess import Popen
 from typing import Any, Dict, Optional, Tuple
 
 from PyQt6.QtCore import QCoreApplication, QTimer
-from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from eloGraf.dialogs import AdvancedUI
@@ -21,6 +21,7 @@ from eloGraf.engines.openai.controller import OpenAIRealtimeState
 from eloGraf.settings import DEFAULT_RATE, Settings
 from eloGraf.pidfile import remove_pid_file
 from eloGraf.state_machine import DictationStateMachine, IconState
+from eloGraf.icon_factory import IconFactory
 
 class SystemTrayIcon(QSystemTrayIcon):
     """Tray icon controller with model-aware tooltip."""
@@ -86,10 +87,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         if self.micro.isNull():
             self.micro = QIcon(":/icons/elograf/24/micro.png")
 
-        # Cache generated icons to avoid regenerating them
-        self._loading_icon = None
-        self._ready_icon = None
-        self._suspended_icon = None
+        self.icon_factory = IconFactory(self.micro, self.nomicro)
         self._current_icon_state = None
 
         self.setIcon(self.nomicro)
@@ -133,75 +131,13 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.dictate()
             self.dictating = True
 
-    def _get_loading_icon(self):
-        """Get microphone icon with red loading indicator"""
-        if self._loading_icon is None:
-            from PyQt6.QtGui import QPixmap, QPainter, QColor
-            from PyQt6.QtCore import Qt
-
-            # Get base icon as pixmap
-            pixmap = self.micro.pixmap(24, 24)
-            painter = QPainter(pixmap)
-
-            # Draw red line at bottom
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(255, 0, 0))  # Red
-            painter.drawRect(0, 22, 24, 2)  # 2px red line at bottom
-
-            painter.end()
-            self._loading_icon = QIcon(pixmap)
-        return self._loading_icon
-
-    def _get_ready_icon(self):
-        """Get microphone icon with green ready indicator"""
-        if self._ready_icon is None:
-            from PyQt6.QtGui import QPixmap, QPainter, QColor
-            from PyQt6.QtCore import Qt
-
-            # Get base icon as pixmap
-            pixmap = self.micro.pixmap(24, 24)
-            painter = QPainter(pixmap)
-
-            # Draw green line at bottom
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(0, 255, 0))  # Green
-            painter.drawRect(0, 22, 24, 2)  # 2px green line at bottom
-
-            painter.end()
-            self._ready_icon = QIcon(pixmap)
-        return self._ready_icon
-
-    def _get_suspended_icon(self):
-        """Get microphone icon with orange suspended indicator"""
-        if self._suspended_icon is None:
-            from PyQt6.QtGui import QPixmap, QPainter, QColor
-            from PyQt6.QtCore import Qt
-
-            pixmap = self.micro.pixmap(24, 24)
-            painter = QPainter(pixmap)
-
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(255, 165, 0))
-            painter.drawRect(0, 22, 24, 2)
-
-            painter.end()
-            self._suspended_icon = QIcon(pixmap)
-        return self._suspended_icon
-
     def _apply_state(self, icon_state: IconState, dictating: bool, suspended: bool) -> None:
         self.dictating = dictating
         self.suspended = suspended
 
         # Only update icon if state has changed
         if self._current_icon_state != icon_state:
-            if icon_state == IconState.LOADING:
-                self.setIcon(self._get_loading_icon())
-            elif icon_state == IconState.READY:
-                self.setIcon(self._get_ready_icon())
-            elif icon_state == IconState.SUSPENDED:
-                self.setIcon(self._get_suspended_icon())
-            else:
-                self.setIcon(self.nomicro)
+            self.setIcon(self.icon_factory.get_icon(icon_state))
             self._current_icon_state = icon_state
 
         self._update_tooltip()
