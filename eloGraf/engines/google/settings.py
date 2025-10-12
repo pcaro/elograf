@@ -1,0 +1,97 @@
+# ABOUTME: Settings schema for Google Cloud Speech engine with UI metadata.
+# ABOUTME: Defines GoogleCloudSettings dataclass with field metadata for dynamic UI generation.
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass
+class GoogleCloudSettings:
+    """Settings for Google Cloud Speech-to-Text engine."""
+
+    engine_type: str = field(
+        default="google-cloud-speech",
+        metadata={"label": "Engine Type", "widget": "text", "readonly": True}
+    )
+
+    device_name: str = field(
+        default="default",
+        metadata={
+            "label": "Pulse device name",
+            "widget": "text",
+            "tooltip": (
+                "The name of the pulse-audio device to use for recording. \n"
+                "See the output of \"pactl list sources\" to find device names (using the identifier following \"Name:\")"
+            ),
+        }
+    )
+
+    credentials_path: str = field(
+        default="",
+        metadata={
+            "label": "Credentials Path",
+            "widget": "text",
+        }
+    )
+
+    project_id: str = field(
+        default="",
+        metadata={
+            "label": "Project ID",
+            "widget": "text",
+        }
+    )
+
+    language_code: str = field(
+        default="en-US",
+        metadata={
+            "label": "Language Code",
+            "widget": "text",
+        }
+    )
+
+    model: str = field(
+        default="chirp_3",
+        metadata={
+            "label": "Model",
+            "widget": "text",
+        }
+    )
+
+    sample_rate: int = field(
+        default=16000,
+        metadata={
+            "label": "Sample Rate",
+            "widget": "text",
+        }
+    )
+
+    channels: int = field(
+        default=1,
+        metadata={
+            "label": "Channels",
+            "widget": "text",
+        }
+    )
+
+    vad_enabled: bool = field(
+        default=True,
+        metadata={
+            "label": "VAD Enabled",
+            "widget": "checkbox",
+        }
+    )
+
+    vad_threshold: float = field(
+        default=500.0,
+        metadata={
+            "label": "VAD Threshold",
+            "widget": "text",
+        }
+    )
+
+    def __post_init__(self):
+        """Validate sample rate is in valid range."""
+        if not 8000 <= self.sample_rate <= 48000:
+            raise ValueError(f"Invalid sample rate: {self.sample_rate}")
