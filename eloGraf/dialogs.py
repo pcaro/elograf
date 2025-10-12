@@ -42,6 +42,12 @@ import eloGraf.advanced as advanced  # type: ignore
 import eloGraf.confirm as confirm  # type: ignore
 import eloGraf.custom as custom  # type: ignore
 
+from eloGraf.ui_generator import generate_settings_tab
+from eloGraf.engine_settings_registry import (
+    get_all_engine_ids,
+    get_engine_settings_class,
+    get_engine_display_name,
+)
 from eloGraf.model_repository import (
     MODEL_GLOBAL_PATH,
     MODEL_LIST,
@@ -166,27 +172,73 @@ class AdvancedUI(QDialog):
         super().__init__()
         self.ui = advanced.Ui_Dialog()
         self.ui.setupUi(self)
-        self.ui.timeout.valueChanged.connect(self.timeoutChanged)
-        self.ui.idleTime.valueChanged.connect(self.idleChanged)
-        self.ui.punctuate.valueChanged.connect(self.punctuateChanged)
         self._add_shortcuts_config()
         self._populate_audio_devices()
-        self._add_assemblyai_tab()
-        if "assemblyai" not in [self.ui.stt_engine_cb.itemText(i) for i in range(self.ui.stt_engine_cb.count())]:
-            self.ui.stt_engine_cb.addItem("assemblyai")
 
-        self.engine_tabs = {
-            "nerd-dictation": self.ui.nerd_dictation_tab,
-            "whisper-docker": self.ui.whisper_docker_tab,
-            "google-cloud-speech": self.ui.google_cloud_tab,
-            "openai-realtime": self.ui.openai_tab,
-            "assemblyai": self.ui.assemblyai_tab,
-        }
+        # Remove all static engine tabs from the UI file
+        self._remove_static_engine_tabs()
+
+        # Generate dynamic tabs for all engines
+        self._generate_engine_tabs()
+
+        # Update engine dropdown to include all registered engines
+        self._populate_engine_dropdown()
 
         self.ui.stt_engine_cb.currentTextChanged.connect(self._on_stt_engine_changed)
-        self.ui.manage_models_btn.clicked.connect(self.manage_models)
+
+    def _remove_static_engine_tabs(self) -> None:
+        """Remove all engine tabs from the .ui file, keeping only General tab."""
+        # List of tab object names to remove (engine tabs from .ui file)
+        tabs_to_remove = [
+            "nerd_dictation_tab",
+            "whisper_docker_tab",
+            "google_cloud_tab",
+            "openai_tab",
+        ]
+
+        # Remove tabs by finding their index and removing from back to front
+        for tab_name in tabs_to_remove:
+            if hasattr(self.ui, tab_name):
+                tab = getattr(self.ui, tab_name)
+                idx = self.ui.tabWidget.indexOf(tab)
+                if idx >= 0:
+                    self.ui.tabWidget.removeTab(idx)
+
+    def _generate_engine_tabs(self) -> None:
+        """Generate tabs dynamically for all registered engines."""
+        self.engine_tabs = {}
+
+        for engine_id in get_all_engine_ids():
+            settings_class = get_engine_settings_class(engine_id)
+            if not settings_class:
+                logging.warning(f"Could not load settings class for engine: {engine_id}")
+                continue
+
+            # Generate tab from settings metadata
+            tab_widget = generate_settings_tab(settings_class)
+
+            # Add tab to dialog
+            display_name = get_engine_display_name(engine_id)
+            idx = self.ui.tabWidget.addTab(tab_widget, display_name)
+
+            # Initially disable all engine tabs (they'll be enabled when selected)
+            self.ui.tabWidget.setTabEnabled(idx, False)
+
+            # Store reference
+            self.engine_tabs[engine_id] = tab_widget
+
+    def _populate_engine_dropdown(self) -> None:
+        """Populate the engine dropdown with all registered engines."""
+        # Clear existing items
+        self.ui.stt_engine_cb.clear()
+
+        # Add all registered engines
+        for engine_id in get_all_engine_ids():
+            display_name = get_engine_display_name(engine_id)
+            self.ui.stt_engine_cb.addItem(engine_id)
 
     def _on_stt_engine_changed(self, engine: str):
+        """Handle engine selection change."""
         # Switch to the appropriate tab
         if engine in self.engine_tabs:
             self.ui.tabWidget.setCurrentWidget(self.engine_tabs[engine])
@@ -197,16 +249,6 @@ class AdvancedUI(QDialog):
             idx = self.ui.tabWidget.indexOf(tab)
             if idx >= 0:
                 self.ui.tabWidget.setTabEnabled(idx, enabled)
-
-    def manage_models(self) -> None:
-        settings = Settings()
-        try:
-            settings.load()
-        except Exception as exc:
-            logging.warning("Failed to load settings before opening model manager: %s", exc)
-        model, _ = settings.current_model()
-        dialog = ConfigPopup(model)
-        dialog.exec()
 
     def _add_shortcuts_config(self) -> None:
         # This is a bit of a hack, but it's the easiest way to add the shortcuts
@@ -244,50 +286,6 @@ class AdvancedUI(QDialog):
         layout.addWidget(label_resume, row_count + 4, 0)
         layout.addWidget(self.resumeShortcut, row_count + 4, 1)
 
-    def _add_assemblyai_tab(self) -> None:
-        if hasattr(self.ui, "assemblyai_tab"):
-            return
-
-        assembly_tab = QWidget()
-        assembly_layout = QGridLayout(assembly_tab)
-
-        help_label = QLabel(self.tr("<i>These settings are only used when this engine is selected in the General tab.</i>"))
-        assembly_layout.addWidget(help_label, 0, 0, 1, 2)
-
-        self.ui.assembly_api_key_le = QLineEdit()
-        self.ui.assembly_model_le = QLineEdit()
-        self.ui.assembly_model_le.setText("universal")
-        self.ui.assembly_language_le = QLineEdit()
-        self.ui.assembly_sample_rate_le = QLineEdit()
-        self.ui.assembly_channels_le = QLineEdit()
-        self.ui.assembly_sample_rate_le.setText("16000")
-        self.ui.assembly_channels_le.setText("1")
-
-        fields = [
-            ("API Key", self.ui.assembly_api_key_le),
-            ("Model", self.ui.assembly_model_le),
-            ("Language", self.ui.assembly_language_le),
-            ("Sample Rate", self.ui.assembly_sample_rate_le),
-            ("Channels", self.ui.assembly_channels_le),
-        ]
-
-        for row, (label_text, widget) in enumerate(fields, start=1):
-            label = QLabel(self.tr(label_text))
-            assembly_layout.addWidget(label, row, 0)
-            assembly_layout.addWidget(widget, row, 1)
-
-        self.ui.assemblyai_tab = assembly_tab
-        idx = self.ui.tabWidget.addTab(assembly_tab, self.tr("AssemblyAI"))
-        self.ui.tabWidget.setTabEnabled(idx, False)
-
-    def timeoutChanged(self, num: int) -> None:
-        self.ui.timeoutDisplay.setText(str(num))
-
-    def idleChanged(self, num: int) -> None:
-        self.ui.idleDisplay.setText(str(num))
-
-    def punctuateChanged(self, num: int) -> None:
-        self.ui.punctuateDisplay.setText(str(num))
 
     def _populate_audio_devices(self) -> None:
         """Populate the device name combo box with available PulseAudio sources."""
