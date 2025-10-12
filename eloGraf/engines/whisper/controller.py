@@ -134,7 +134,19 @@ class WhisperDockerProcessRunner(StreamingRunnerBase):
         self._input_simulator = input_simulator or type_text
 
     def _preflight_checks(self) -> bool:
-        return self._ensure_container_model() and self._wait_for_api()
+        if not self._ensure_container_model():
+            self._controller.emit_error(
+                "Failed to prepare Whisper Docker container. Ensure Docker is installed and the user has permission to run it."
+            )
+            return False
+
+        if not self._wait_for_api():
+            self._controller.emit_error(
+                "Whisper Docker API did not start in time. Verify the container can reach port 9000 and try again."
+            )
+            return False
+
+        return True
 
     def _initialize_connection(self) -> bool:
         self._controller.set_ready()
@@ -229,7 +241,10 @@ class WhisperDockerProcessRunner(StreamingRunnerBase):
                         run(["docker", "start", self._container_name], check=True)
                         return True
         except (CalledProcessError, FileNotFoundError) as exc:
-            logging.error(f"Failed to manage Docker container: {exc}")
+            logging.error("Failed to manage Docker container: %s", exc)
+            self._controller.emit_error(
+                "Docker is required for Whisper Docker engine. Install Docker and ensure it is accessible."
+            )
             return False
 
         logging.info(f"Starting Whisper Docker container '{self._container_name}' with model '{self._model}'...")
@@ -244,7 +259,10 @@ class WhisperDockerProcessRunner(StreamingRunnerBase):
             ], check=True)
             return True
         except (CalledProcessError, FileNotFoundError) as exc:
-            logging.error(f"Failed to start Docker container: {exc}")
+            logging.error("Failed to start Docker container: %s", exc)
+            self._controller.emit_error(
+                "Could not start Whisper Docker container. Check Docker permissions and that the image is available."
+            )
             return False
 
     def _wait_for_api(self, timeout: int = 180) -> bool:
