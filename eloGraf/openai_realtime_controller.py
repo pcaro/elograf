@@ -3,21 +3,21 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import logging
+import shutil
+import subprocess
 import threading
 import time
-import base64
 from enum import Enum, auto
-from subprocess import run, CalledProcessError, PIPE, Popen
-import subprocess
-import shutil
-from typing import Callable, Dict, List, Optional, Sequence
+from subprocess import PIPE, Popen, CalledProcessError, run
+from typing import Callable, Dict, List, Optional
 
 from eloGraf.base_controller import EnumStateController
-from eloGraf.stt_engine import STTProcessRunner
 from eloGraf.input_simulator import type_text
+from eloGraf.streaming_runner_base import StreamingRunnerBase
 
 
 class OpenAIRealtimeState(Enum):
@@ -107,7 +107,7 @@ class OpenAIRealtimeController(EnumStateController[OpenAIRealtimeState]):
         self._stop_requested = False
 
 
-class OpenAIRealtimeProcessRunner(STTProcessRunner):
+class OpenAIRealtimeProcessRunner(StreamingRunnerBase):
     """Manages OpenAI Realtime API WebSocket connection and streaming."""
 
     def __init__(
@@ -128,6 +128,13 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         pulse_device: Optional[str] = None,
         input_simulator: Optional[Callable[[str], None]] = None,
     ) -> None:
+        super().__init__(
+            controller,
+            sample_rate=sample_rate,
+            channels=channels,
+            chunk_duration=chunk_duration,
+            input_simulator=input_simulator or type_text,
+        )
         self._controller = controller
         self._api_key = api_key
         session_model_map = {
@@ -147,23 +154,18 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         self._api_version = api_version
         self._sample_rate = sample_rate
         self._channels = channels
-        self._chunk_duration = chunk_duration
         self._vad_enabled = vad_enabled
         self._vad_threshold = vad_threshold
         self._vad_prefix_padding_ms = vad_prefix_padding_ms
         self._vad_silence_duration_ms = vad_silence_duration_ms
-        self._input_simulator = input_simulator or type_text
         self._ws_thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
         self._ws = None
-        self._audio_recorder: Optional[AudioRecorder] = None
         self._audio_buffer = bytearray()
-        self._sample_width_bytes = 2  # matches s16le
+        self._sample_width_bytes = 2
         self._bytes_per_commit = max(
             1,
             int(self._sample_rate * self._chunk_duration) * self._channels * self._sample_width_bytes,
         )
-        # ensure at least 200ms of audio per commit to avoid server-side rounding issues
         min_commit_bytes = (self._sample_rate * self._channels * self._sample_width_bytes) // 5
         if self._bytes_per_commit < min_commit_bytes:
             self._bytes_per_commit = min_commit_bytes
@@ -171,72 +173,78 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         self._current_response_id: Optional[str] = None
         self._current_transcript: List[str] = []
         self._pulse_device = pulse_device
+        self._ws_ready = threading.Event()
+        self._ws_failure = threading.Event()
 
-    def start(self, command: Sequence[str], env: Optional[Dict[str, str]] = None) -> bool:
-        if self.is_running():
-            logging.warning("OpenAI Realtime is already running")
-            return False
-
-        self._controller.start()
-
+    def _preflight_checks(self) -> bool:
         if not self._api_key:
             logging.error("OpenAI API key is required")
             self._controller.emit_error("OpenAI API key is required")
-            self._controller.fail_to_start()
             return False
-
-        # Verify websocket-client is installed
         try:
-            import websocket
+            import websocket  # noqa: F401
         except ImportError:
             logging.error(
-                "websocket-client is not installed. "
-                "Install with: pip install websocket-client"
+                "websocket-client is not installed. Install with: pip install websocket-client"
             )
             self._controller.emit_error("websocket-client package is required")
-            self._controller.fail_to_start()
             return False
+        return True
 
-        # Start WebSocket thread
-        self._stop_event.clear()
+    def _initialize_connection(self) -> bool:
+        self._ws_ready.clear()
+        self._ws_failure.clear()
         self._ws_thread = threading.Thread(target=self._websocket_loop, daemon=True)
         self._ws_thread.start()
 
+        # Wait for connection to be ready or fail
+        connected = self._ws_ready.wait(timeout=5)
+        if not connected or self._ws_failure.is_set():
+            return False
         return True
 
-    def stop(self) -> None:
-        if not self.is_running():
-            return
-
-        self._controller.stop_requested()
-        self._stop_event.set()
-
+    def _cleanup_connection(self) -> None:
         if self._ws:
             try:
                 self._ws.close()
-            except Exception:
+            except Exception:  # pragma: no cover - defensive
                 pass
+            self._ws = None
 
         if self._ws_thread:
             self._ws_thread.join(timeout=2)
             self._ws_thread = None
+        self._ws_ready.clear()
+        self._ws_failure.clear()
+        self._audio_buffer.clear()
 
-        self._controller.handle_exit(0)
+    def _create_audio_recorder(self):
+        return AudioRecorder(
+            sample_rate=self._sample_rate,
+            channels=self._channels,
+            device=self._pulse_device,
+        )
 
-    def suspend(self) -> None:
-        if self.is_running():
-            self._controller.suspend_requested()
+    def _process_audio_chunk(self, audio_data: bytes) -> None:
+        if self._ws is None or not self._ws_ready.is_set():
+            return
 
-    def resume(self) -> None:
-        if self.is_running():
-            self._controller.resume_requested()
+        raw_audio = self._extract_raw_audio(audio_data)
+        self._audio_buffer.extend(raw_audio)
 
-    def poll(self) -> None:
-        # WebSocket runs in background thread, no polling needed
-        pass
+        while len(self._audio_buffer) >= self._bytes_per_commit:
+            chunk = bytes(self._audio_buffer[: self._bytes_per_commit])
+            del self._audio_buffer[: self._bytes_per_commit]
 
-    def is_running(self) -> bool:
-        return self._ws_thread is not None and self._ws_thread.is_alive()
+            audio_event = {
+                "type": "input_audio_buffer.append",
+                "audio": base64.b64encode(chunk).decode("utf-8"),
+            }
+            try:
+                self._ws.send(json.dumps(audio_event))
+            except Exception as exc:  # pragma: no cover - defensive
+                logging.error("Failed to send audio chunk: %s", exc)
+                break
 
     def _websocket_loop(self) -> None:
         """Main WebSocket loop for OpenAI Realtime API."""
@@ -267,7 +275,13 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         except Exception as exc:
             logging.exception("WebSocket loop error")
             self._controller.emit_error(f"WebSocket loop error: {exc}")
-            self._controller.handle_exit(1)
+            self._failure_exit = True
+            self._ws_failure.set()
+            self._stop_event.set()
+        finally:
+            if not self._ws_ready.is_set():
+                self._ws_ready.set()
+            self._ws = None
 
     def _on_open(self, ws) -> None:
         """Handle WebSocket connection opened."""
@@ -310,10 +324,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         ws.send(json.dumps(session_config))
 
         self._controller.transition_to("ready")
-
-        # Start audio recording thread
-        audio_thread = threading.Thread(target=self._audio_loop, daemon=True)
-        audio_thread.start()
+        self._ws_ready.set()
 
     def _on_message(self, ws, message) -> None:
         """Handle WebSocket message received."""
@@ -377,73 +388,18 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
     def _on_error(self, ws, error) -> None:
         """Handle WebSocket error."""
         logging.error(f"WebSocket error: {error}")
+        self._ws_failure.set()
         if error:
             self._controller.emit_error(str(error))
 
     def _on_close(self, ws, close_status_code, close_msg) -> None:
         """Handle WebSocket connection closed."""
         logging.info(f"WebSocket closed: {close_status_code} - {close_msg}")
-        if not self._stop_event.is_set():
-            reason = f"WebSocket closed unexpectedly: {close_status_code} - {close_msg}"
+        self._stop_event.set()
+        if close_status_code not in (1000, None):
+            reason = f"WebSocket closed: {close_status_code} - {close_msg}"
             self._controller.emit_error(reason)
-            self._controller.handle_exit(1)
-
-    def _audio_loop(self) -> None:
-        """Record and stream audio to WebSocket."""
-        try:
-            logging.info(f"Starting audio loop with device: {self._pulse_device}")
-            self._audio_recorder = AudioRecorder(
-                sample_rate=self._sample_rate,
-                channels=self._channels,
-                device=self._pulse_device,
-            )
-            self._controller.transition_to("recording")
-            logging.info("Audio recording started successfully")
-
-            while not self._stop_event.is_set():
-                # Check if suspended
-                if self._controller.is_suspended:
-                    time.sleep(0.1)
-                    continue
-
-                # Record audio chunk
-                audio_data = self._audio_recorder.record_chunk(duration=self._chunk_duration)
-
-                if self._stop_event.is_set():
-                    break
-
-                # Check if suspended again
-                if self._controller.is_suspended:
-                    continue
-
-                # Extract raw PCM audio (skip WAV header)
-                raw_audio = self._extract_raw_audio(audio_data)
-
-                # Encode to base64
-                audio_b64 = base64.b64encode(raw_audio).decode('utf-8')
-
-                # Send audio to WebSocket
-                self._audio_buffer.extend(raw_audio)
-
-                # Send audio to WebSocket - let server VAD handle segmentation
-                if len(self._audio_buffer) >= self._bytes_per_commit and self._ws:
-                    chunk = bytes(self._audio_buffer[: self._bytes_per_commit])
-                    del self._audio_buffer[: self._bytes_per_commit]
-
-                    audio_event = {
-                        "type": "input_audio_buffer.append",
-                        "audio": base64.b64encode(chunk).decode("utf-8"),
-                    }
-
-                    try:
-                        self._ws.send(json.dumps(audio_event))
-                    except Exception as exc:
-                        logging.error("Failed to send audio chunk: %s", exc)
-
-        except Exception as exc:
-            logging.exception("Audio loop error")
-            self._controller.emit_error(f"Audio loop error: {exc}")
-            self._controller.handle_exit(1)
+            self._failure_exit = True
 
     def _extract_raw_audio(self, wav_data: bytes) -> bytes:
         """Extract raw PCM audio from WAV file (skip 44-byte header)."""

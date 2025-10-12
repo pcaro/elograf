@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from eloGraf.whisper_docker_controller import (
     WhisperDockerController,
     WhisperDockerProcessRunner,
@@ -85,9 +85,8 @@ def test_runner_start_container_not_running(mock_requests, mock_run):
     mock_response.status_code = 200
     mock_requests.get.return_value = mock_response
 
-    result = runner.start([], env={})
-
-    assert result == True
+    assert runner._preflight_checks() is True
+    assert runner._initialize_connection() is True
     assert controller.state == WhisperDockerState.READY
 
 
@@ -111,14 +110,16 @@ def test_runner_stop():
     controller = WhisperDockerController()
     runner = WhisperDockerProcessRunner(controller)
 
-    # Start a mock recording thread
-    runner._recording_thread = Mock()
-    runner._recording_thread.is_alive.return_value = True
-    runner._recording_thread.join = Mock()
+    mock_thread = Mock()
+    mock_thread.is_alive.return_value = True
+    mock_thread.join = Mock()
+    runner._runner_thread = mock_thread
+    runner._audio_recorder = Mock()
 
     runner.stop()
 
-    assert runner._stop_recording.is_set()
+    assert runner._stop_event.is_set()
+    mock_thread.join.assert_called_once()
     assert controller.state == WhisperDockerState.IDLE
 
 

@@ -11,14 +11,13 @@ import time
 from enum import Enum, auto
 from pathlib import Path
 from subprocess import run, CalledProcessError
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional
 
 import requests
 
-from eloGraf.audio_recorder import AudioRecorder
 from eloGraf.base_controller import EnumStateController
 from eloGraf.input_simulator import type_text
-from eloGraf.stt_engine import STTProcessRunner
+from eloGraf.streaming_runner_base import StreamingRunnerBase
 
 
 class WhisperDockerState(Enum):
@@ -103,8 +102,8 @@ class WhisperDockerController(EnumStateController[WhisperDockerState]):
         self._stop_requested = False
 
 
-class WhisperDockerProcessRunner(STTProcessRunner):
-    """Manages Whisper Docker container and audio recording/transcription."""
+class WhisperDockerProcessRunner(StreamingRunnerBase):
+    """Manages Whisper Docker container and audio streaming."""
 
     def __init__(
         self,
@@ -122,75 +121,47 @@ class WhisperDockerProcessRunner(STTProcessRunner):
         auto_reconnect: bool = True,
         input_simulator: Optional[Callable[[str], None]] = None,
     ) -> None:
+        super().__init__(
+            controller,
+            sample_rate=sample_rate,
+            channels=channels,
+            chunk_duration=chunk_duration,
+            input_simulator=input_simulator or type_text,
+        )
         self._controller = controller
         self._container_name = container_name
         self._api_port = api_port
         self._api_url = f"http://localhost:{api_port}/asr"
         self._model = model
         self._language = language
-        self._chunk_duration = chunk_duration
-        self._sample_rate = sample_rate
-        self._channels = channels
         self._vad_enabled = vad_enabled
         self._vad_threshold = vad_threshold
         self._auto_reconnect = auto_reconnect
         self._input_simulator = input_simulator or type_text
-        self._recording_thread: Optional[threading.Thread] = None
-        self._stop_recording = threading.Event()
-        self._audio_recorder: Optional[AudioRecorder] = None
 
-    def start(self, command: Sequence[str], env: Optional[Dict[str, str]] = None) -> bool:
-        if self.is_running():
-            logging.warning("Whisper Docker is already running")
-            return False
+    def _preflight_checks(self) -> bool:
+        return self._ensure_container_model() and self._wait_for_api()
 
-        self._controller.start()
-
-        if not self._ensure_container_model():
-            self._controller.fail_to_start()
-            return False
-
-        # Wait for API to be ready
-        if not self._wait_for_api():
-            self._controller.fail_to_start()
-            return False
-
+    def _initialize_connection(self) -> bool:
         self._controller.set_ready()
-
-        # Start recording in background thread
-        self._stop_recording.clear()
-        self._recording_thread = threading.Thread(target=self._recording_loop, daemon=True)
-        self._recording_thread.start()
-
         return True
 
-    def stop(self) -> None:
-        if not self.is_running():
-            return
+    def _process_audio_chunk(self, audio_data: bytes) -> None:
+        if self._vad_enabled:
+            audio_level = self._calculate_audio_level(audio_data)
+            if audio_level < self._vad_threshold:
+                return
 
-        self._controller.stop_requested()
-        self._stop_recording.set()
+        self._controller.set_transcribing()
+        transcription = self._transcribe_audio(audio_data)
+        if transcription:
+            self._controller.handle_output(f"Transcribed: {transcription}")
+            self._input_simulator(transcription)
+        self._controller.set_recording()
 
-        if self._recording_thread:
-            self._recording_thread.join(timeout=2)
-            self._recording_thread = None
-
-        self._controller.handle_exit(0)
-
-    def suspend(self) -> None:
-        if self.is_running():
-            self._controller.suspend_requested()
-
-    def resume(self) -> None:
-        if self.is_running():
-            self._controller.resume_requested()
-
-    def poll(self) -> None:
-        # Whisper Docker uses background threads, no polling needed
+    def _cleanup_connection(self) -> None:
+        # Container remains available for subsequent runs.
         pass
-
-    def is_running(self) -> bool:
-        return self._recording_thread is not None and self._recording_thread.is_alive()
 
     def _is_container_running(self) -> bool:
         try:
@@ -310,52 +281,6 @@ class WhisperDockerProcessRunner(STTProcessRunner):
 
         logging.error("Whisper API failed to start within timeout")
         return False
-
-    def _recording_loop(self) -> None:
-        try:
-            self._audio_recorder = AudioRecorder(
-                sample_rate=self._sample_rate,
-                channels=self._channels,
-                backend="pyaudio"
-            )
-            self._controller.set_recording()
-
-            while not self._stop_recording.is_set():
-                # Check if suspended
-                if self._controller.is_suspended:
-                    time.sleep(0.1)
-                    continue
-
-                # Record audio chunk
-                audio_data = self._audio_recorder.record_chunk(duration=self._chunk_duration)
-
-                if self._stop_recording.is_set():
-                    break
-
-                # Check if suspended again (might have changed during recording)
-                if self._controller.is_suspended:
-                    continue
-
-                # Apply VAD if enabled
-                if self._vad_enabled:
-                    audio_level = self._calculate_audio_level(audio_data)
-                    if audio_level < self._vad_threshold:
-                        # Silent audio, skip transcription
-                        continue
-
-                # Transcribe chunk
-                self._controller.set_transcribing()
-                text = self._transcribe_audio(audio_data)
-
-                if text:
-                    self._controller.handle_output(f"Transcribed: {text}")
-                    self._input_simulator(text)
-
-                self._controller.set_recording()
-
-        except Exception as exc:
-            logging.error(f"Recording loop error: {exc}")
-            self._controller.handle_exit(1)
 
     def _calculate_audio_level(self, audio_data: bytes) -> float:
         """Calculate RMS audio level from WAV data."""

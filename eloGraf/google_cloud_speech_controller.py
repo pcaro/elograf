@@ -6,15 +6,16 @@ from __future__ import annotations
 import io
 import logging
 import os
+import queue
 import threading
 import time
 from enum import Enum, auto
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional
 
 from eloGraf.base_controller import EnumStateController
-from eloGraf.stt_engine import STTProcessRunner
 from eloGraf.input_simulator import type_text
+from eloGraf.streaming_runner_base import StreamingRunnerBase
 
 
 class GoogleCloudSpeechState(Enum):
@@ -101,7 +102,7 @@ class GoogleCloudSpeechController(EnumStateController[GoogleCloudSpeechState]):
         self._stop_requested = False
 
 
-class GoogleCloudSpeechProcessRunner(STTProcessRunner):
+class GoogleCloudSpeechProcessRunner(StreamingRunnerBase):
     """Manages Google Cloud Speech API streaming recognition."""
 
     def __init__(
@@ -119,82 +120,28 @@ class GoogleCloudSpeechProcessRunner(STTProcessRunner):
         vad_threshold: float = 500.0,
         input_simulator: Optional[Callable[[str], None]] = None,
     ) -> None:
+        super().__init__(
+            controller,
+            sample_rate=sample_rate,
+            channels=channels,
+            chunk_duration=chunk_duration,
+            input_simulator=input_simulator or type_text,
+        )
         self._controller = controller
         self._credentials_path = credentials_path
         self._project_id = project_id
         self._language_code = language_code
         self._model = model
-        self._sample_rate = sample_rate
-        self._channels = channels
-        self._chunk_duration = chunk_duration
         self._vad_enabled = vad_enabled
         self._vad_threshold = vad_threshold
         self._input_simulator = input_simulator or type_text
-        self._recording_thread: Optional[threading.Thread] = None
-        self._stop_recording = threading.Event()
-        self._audio_recorder: Optional[AudioRecorder] = None
 
-    def start(self, command: Sequence[str], env: Optional[Dict[str, str]] = None) -> bool:
-        if self.is_running():
-            logging.warning("Google Cloud Speech is already running")
-            return False
-
-        self._controller.start()
-
-        # Verify credentials
-        if not self._verify_credentials():
-            self._controller.emit_error("Google Cloud credentials are not configured correctly")
-            self._controller.fail_to_start()
-            return False
-
-        # Verify google-cloud-speech is installed
-        try:
-            import google.cloud.speech_v2
-        except ImportError:
-            logging.error(
-                "google-cloud-speech is not installed. "
-                "Install with: pip install google-cloud-speech"
-            )
-            self._controller.emit_error("google-cloud-speech package is required")
-            self._controller.fail_to_start()
-            return False
-
-        self._controller.transition_to("ready")
-
-        # Start streaming in background thread
-        self._stop_recording.clear()
-        self._recording_thread = threading.Thread(target=self._streaming_loop, daemon=True)
-        self._recording_thread.start()
-
-        return True
-
-    def stop(self) -> None:
-        if not self.is_running():
-            return
-
-        self._controller.stop_requested()
-        self._stop_recording.set()
-
-        if self._recording_thread:
-            self._recording_thread.join(timeout=2)
-            self._recording_thread = None
-
-        self._controller.handle_exit(0)
-
-    def suspend(self) -> None:
-        if self.is_running():
-            self._controller.suspend_requested()
-
-    def resume(self) -> None:
-        if self.is_running():
-            self._controller.resume_requested()
-
-    def poll(self) -> None:
-        # Google Cloud Speech uses background threads, no polling needed
-        pass
-
-    def is_running(self) -> bool:
-        return self._recording_thread is not None and self._recording_thread.is_alive()
+        self._audio_queue: Optional[queue.Queue[Optional[bytes]]] = None
+        self._response_thread: Optional[threading.Thread] = None
+        self._client = None
+        self._recognizer: Optional[str] = None
+        self._streaming_config = None
+        self._speech_types = None
 
     def _verify_credentials(self) -> bool:
         """Verify Google Cloud credentials are available."""
@@ -213,119 +160,131 @@ class GoogleCloudSpeechProcessRunner(STTProcessRunner):
                 )
         return True
 
-    def _streaming_loop(self) -> None:
-        """Main streaming loop for Google Cloud Speech recognition."""
+    def _preflight_checks(self) -> bool:
+        return self._verify_credentials()
+
+    def _initialize_connection(self) -> bool:
         try:
             from google.cloud.speech_v2 import SpeechClient
             from google.cloud.speech_v2.types import cloud_speech as cloud_speech_types
-
-            client = SpeechClient()
-            self._controller.transition_to("connecting")
-
-            # Build recognizer name
-            if self._project_id:
-                recognizer = f"projects/{self._project_id}/locations/global/recognizers/_"
-            else:
-                # Try to get project from credentials
-                try:
-                    from google.auth import default
-                    credentials, project_id = default()
-                    if not project_id:
-                        raise ValueError("Could not determine project ID")
-                    recognizer = f"projects/{project_id}/locations/global/recognizers/_"
-                    logging.info(f"Using project: {project_id}")
-                except Exception as exc:
-                    logging.exception("Failed to determine project ID")
-                    self._controller.emit_error(f"Failed to determine project ID: {exc}")
-                    self._controller.handle_exit(1)
-                    return
-
-            # Configure recognition
-            recognition_config = cloud_speech_types.RecognitionConfig(
-                auto_decoding_config=cloud_speech_types.AutoDetectDecodingConfig(),
-                language_codes=[self._language_code],
-                model=self._model,
+        except ImportError:
+            logging.error(
+                "google-cloud-speech is not installed. Install with: pip install google-cloud-speech"
             )
+            self._controller.emit_error("google-cloud-speech package is required")
+            return False
 
-            streaming_config = cloud_speech_types.StreamingRecognitionConfig(
-                config=recognition_config,
-            )
+        self._speech_types = cloud_speech_types
+        self._client = SpeechClient()
+        self._controller.transition_to("connecting")
 
-            self._audio_recorder = AudioRecorder(
-                sample_rate=self._sample_rate,
-                channels=self._channels,
-            )
-            self._controller.transition_to("recording")
+        try:
+            self._recognizer = self._resolve_recognizer_name()
+        except Exception as exc:
+            logging.exception("Failed to determine project ID")
+            self._controller.emit_error(f"Failed to determine project ID: {exc}")
+            return False
 
-            # Generator for audio chunks
-            def audio_generator():
-                # First request with config
-                yield cloud_speech_types.StreamingRecognizeRequest(
-                    recognizer=recognizer,
-                    streaming_config=streaming_config,
-                )
+        recognition_config = cloud_speech_types.RecognitionConfig(
+            auto_decoding_config=cloud_speech_types.AutoDetectDecodingConfig(),
+            language_codes=[self._language_code],
+            model=self._model,
+        )
 
-                # Then audio chunks
-                while not self._stop_recording.is_set():
-                    # Check if suspended
-                    if self._controller.is_suspended:
-                        time.sleep(0.1)
-                        continue
+        self._streaming_config = cloud_speech_types.StreamingRecognitionConfig(
+            config=recognition_config,
+        )
 
-                    # Record audio chunk (small chunk for streaming)
-                    audio_data = self._audio_recorder.record_chunk(
-                        duration=self._chunk_duration
-                    )
+        self._audio_queue = queue.Queue()
+        self._response_thread = threading.Thread(target=self._response_loop, daemon=True)
+        self._response_thread.start()
+        self._controller.set_ready()
+        return True
 
-                    if self._stop_recording.is_set():
-                        break
+    def _process_audio_chunk(self, audio_data: bytes) -> None:
+        if self._vad_enabled:
+            audio_level = self._calculate_audio_level(audio_data)
+            if audio_level < self._vad_threshold:
+                return
 
-                    # Check if suspended again
-                    if self._controller.is_suspended:
-                        continue
+        raw_audio = self._extract_raw_audio(audio_data)
+        max_chunk_size = 25 * 1024
+        if len(raw_audio) > max_chunk_size:
+            raw_audio = raw_audio[:max_chunk_size]
 
-                    # Apply VAD if enabled
-                    if self._vad_enabled:
-                        audio_level = self._calculate_audio_level(audio_data)
-                        if audio_level < self._vad_threshold:
-                            continue
+        if self._audio_queue is not None:
+            self._controller.set_transcribing()
+            self._audio_queue.put(raw_audio)
 
-                    # Extract raw PCM audio from WAV (skip header)
-                    raw_audio = self._extract_raw_audio(audio_data)
+    def _cleanup_connection(self) -> None:
+        if self._audio_queue is not None:
+            self._audio_queue.put(None)
+        if self._response_thread:
+            self._response_thread.join(timeout=2)
+            self._response_thread = None
+        self._audio_queue = None
+        self._client = None
+        self._streaming_config = None
+        self._recognizer = None
 
-                    # Limit chunk size to 25 KB
-                    max_chunk_size = 25 * 1024
-                    if len(raw_audio) > max_chunk_size:
-                        raw_audio = raw_audio[:max_chunk_size]
+    # ------------------------------------------------------------------
+    # Streaming helpers
+    # ------------------------------------------------------------------
 
-                    self._controller.transition_to("transcribing")
-                    yield cloud_speech_types.StreamingRecognizeRequest(audio=raw_audio)
+    def _resolve_recognizer_name(self) -> str:
+        if self._project_id:
+            return f"projects/{self._project_id}/locations/global/recognizers/_"
 
-            # Stream audio and get responses
-            responses = client.streaming_recognize(requests=audio_generator())
+        from google.auth import default
 
-            self._controller.transition_to("recording")
+        credentials, project_id = default()
+        if not project_id:
+            raise ValueError("Could not determine project ID")
+        logging.info("Using project: %s", project_id)
+        return f"projects/{project_id}/locations/global/recognizers/_"
 
-            # Process responses
+    def _request_generator(self):
+        assert self._speech_types is not None
+        assert self._recognizer is not None
+        assert self._streaming_config is not None
+
+        yield self._speech_types.StreamingRecognizeRequest(
+            recognizer=self._recognizer,
+            streaming_config=self._streaming_config,
+        )
+
+        while True:
+            if self._audio_queue is None:
+                break
+            chunk = self._audio_queue.get()
+            if chunk is None:
+                break
+            if self._stop_event.is_set():
+                break
+            yield self._speech_types.StreamingRecognizeRequest(audio=chunk)
+
+    def _response_loop(self) -> None:
+        if not self._client or not self._speech_types:
+            return
+
+        try:
+            responses = self._client.streaming_recognize(requests=self._request_generator())
             for response in responses:
-                if self._stop_recording.is_set():
+                if self._stop_event.is_set():
                     break
-
                 for result in response.results:
                     if not result.alternatives:
                         continue
-
                     transcript = result.alternatives[0].transcript
-
-                    # Only output final results
                     if result.is_final and transcript.strip():
                         self._controller.emit_transcription(transcript)
                         self._input_simulator(transcript)
-
-        except Exception as exc:
+                self._controller.set_recording()
+        except Exception as exc:  # pragma: no cover - defensive
             logging.exception("Streaming loop error")
             self._controller.emit_error(f"Streaming loop error: {exc}")
-            self._controller.handle_exit(1)
+            self._failure_exit = True
+            self._stop_event.set()
 
     def _calculate_audio_level(self, audio_data: bytes) -> float:
         """Calculate RMS audio level from WAV data."""
