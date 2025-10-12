@@ -111,7 +111,7 @@ class StreamingRunnerBase(STTProcessRunner, ABC):
 
         try:
             while not self._stop_event.is_set():
-                if getattr(self._controller, "is_suspended", False):
+                if self._controller.is_suspended:
                     time.sleep(0.1)
                     continue
 

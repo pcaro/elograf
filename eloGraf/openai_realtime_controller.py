@@ -15,7 +15,7 @@ from enum import Enum, auto
 from subprocess import PIPE, Popen, CalledProcessError, run
 from typing import Callable, Dict, List, Optional
 
-from eloGraf.base_controller import EnumStateController
+from eloGraf.base_controller import StreamingControllerBase
 from eloGraf.input_simulator import type_text
 from eloGraf.streaming_runner_base import StreamingRunnerBase
 
@@ -48,7 +48,7 @@ STATE_MAP = {
 }
 
 
-class OpenAIRealtimeController(EnumStateController[OpenAIRealtimeState]):
+class OpenAIRealtimeController(StreamingControllerBase[OpenAIRealtimeState]):
     """Controller for OpenAI Realtime API that interprets states."""
 
     def __init__(self) -> None:
@@ -58,7 +58,6 @@ class OpenAIRealtimeController(EnumStateController[OpenAIRealtimeState]):
             engine_name="OpenAIRealtime",
         )
         self._stop_requested = False
-        self._suspended = False
 
     def start(self) -> None:
         self._stop_requested = False
@@ -66,18 +65,6 @@ class OpenAIRealtimeController(EnumStateController[OpenAIRealtimeState]):
 
     def stop_requested(self) -> None:
         self._stop_requested = True
-
-    def suspend_requested(self) -> None:
-        self._suspended = True
-        self.transition_to("suspended")
-
-    def resume_requested(self) -> None:
-        self._suspended = False
-        self.transition_to("recording")
-
-    @property
-    def is_suspended(self) -> bool:
-        return self._suspended
 
     def fail_to_start(self) -> None:
         self._stop_requested = False

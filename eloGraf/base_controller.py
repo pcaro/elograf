@@ -100,3 +100,26 @@ class EnumStateController(STTController, Generic[StateEnum]):
     def _emit_exit(self, return_code: int) -> None:
         for listener in list(self._exit_listeners):
             listener(return_code)
+
+
+class StreamingControllerBase(EnumStateController[StateEnum]):
+    """Base class for streaming STT controllers with suspend/resume support."""
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._suspended = False
+
+    def suspend_requested(self) -> None:
+        """Request suspension of audio processing."""
+        self._suspended = True
+        self.transition_to("suspended")
+
+    def resume_requested(self) -> None:
+        """Request resumption of audio processing."""
+        self._suspended = False
+        self.transition_to("recording")
+
+    @property
+    def is_suspended(self) -> bool:
+        """Check if controller is in suspended state."""
+        return self._suspended

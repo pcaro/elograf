@@ -11,7 +11,7 @@ from typing import Callable, Dict, List, Optional
 import requests
 import websocket
 
-from eloGraf.base_controller import EnumStateController
+from eloGraf.base_controller import StreamingControllerBase
 from eloGraf.input_simulator import type_text
 from eloGraf.streaming_runner_base import StreamingRunnerBase
 
@@ -44,7 +44,7 @@ STATE_MAP = {
 }
 
 
-class AssemblyAIRealtimeController(EnumStateController[AssemblyAIRealtimeState]):
+class AssemblyAIRealtimeController(StreamingControllerBase[AssemblyAIRealtimeState]):
     """Controller handling AssemblyAI realtime state transitions."""
 
     def __init__(self) -> None:
@@ -54,7 +54,6 @@ class AssemblyAIRealtimeController(EnumStateController[AssemblyAIRealtimeState])
             engine_name="AssemblyAIRealtime",
         )
         self._stop_requested = False
-        self._suspended = False
 
     def start(self) -> None:
         self._stop_requested = False
@@ -62,18 +61,6 @@ class AssemblyAIRealtimeController(EnumStateController[AssemblyAIRealtimeState])
 
     def stop_requested(self) -> None:
         self._stop_requested = True
-
-    def suspend_requested(self) -> None:
-        self._suspended = True
-        self.transition_to("suspended")
-
-    def resume_requested(self) -> None:
-        self._suspended = False
-        self.transition_to("recording")
-
-    @property
-    def is_suspended(self) -> bool:
-        return self._suspended
 
     def fail_to_start(self) -> None:
         self._stop_requested = False

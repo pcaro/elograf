@@ -15,7 +15,7 @@ from typing import Callable, Dict, List, Optional
 
 import requests
 
-from eloGraf.base_controller import EnumStateController
+from eloGraf.base_controller import StreamingControllerBase
 from eloGraf.input_simulator import type_text
 from eloGraf.streaming_runner_base import StreamingRunnerBase
 
@@ -46,7 +46,7 @@ STATE_MAP = {
 }
 
 
-class WhisperDockerController(EnumStateController[WhisperDockerState]):
+class WhisperDockerController(StreamingControllerBase[WhisperDockerState]):
     """Controller for Whisper Docker container that interprets states."""
 
     def __init__(self) -> None:
@@ -56,7 +56,6 @@ class WhisperDockerController(EnumStateController[WhisperDockerState]):
             engine_name="WhisperDocker",
         )
         self._stop_requested = False
-        self._suspended = False
 
     def start(self) -> None:
         self._stop_requested = False
@@ -64,18 +63,6 @@ class WhisperDockerController(EnumStateController[WhisperDockerState]):
 
     def stop_requested(self) -> None:
         self._stop_requested = True
-
-    def suspend_requested(self) -> None:
-        self._suspended = True
-        self._set_state(WhisperDockerState.SUSPENDED)
-
-    def resume_requested(self) -> None:
-        self._suspended = False
-        self._set_state(WhisperDockerState.RECORDING)
-
-    @property
-    def is_suspended(self) -> bool:
-        return self._suspended
 
     def fail_to_start(self) -> None:
         self._stop_requested = False
