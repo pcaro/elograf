@@ -1,7 +1,7 @@
 """Tests for Google Cloud Speech controller."""
 
 import pytest
-from eloGraf.google_cloud_speech_controller import (
+from eloGraf.engines.google.controller import (
     GoogleCloudSpeechController,
     GoogleCloudSpeechProcessRunner,
     GoogleCloudSpeechState

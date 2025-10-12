@@ -8,7 +8,7 @@ from typing import Dict, Tuple, TYPE_CHECKING
 from eloGraf.engine_plugin import EnginePlugin, register_plugin
 from eloGraf.settings_schema import OpenAISettings
 from eloGraf.stt_engine import STTController, STTProcessRunner
-from eloGraf.openai_realtime_controller import (
+from .controller import (
     OpenAIRealtimeController,
     OpenAIRealtimeProcessRunner,
 )

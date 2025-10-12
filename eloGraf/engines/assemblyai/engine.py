@@ -11,7 +11,7 @@ from eloGraf.stt_engine import STTController, STTProcessRunner
 
 if TYPE_CHECKING:  # pragma: no cover - import for type hints only
     from eloGraf.settings import Settings
-    from eloGraf.assemblyai_realtime_controller import (
+    from .controller import (
         AssemblyAIRealtimeController,
         AssemblyAIRealtimeProcessRunner,
     )
@@ -41,7 +41,7 @@ class AssemblyAIRealtimePlugin(EnginePlugin):
         if isinstance(device_name, str) and device_name and device_name != "default":
             pulse_device = device_name
         params["pulse_device"] = pulse_device
-        from eloGraf.assemblyai_realtime_controller import (
+        from .controller import (
             AssemblyAIRealtimeController,
             AssemblyAIRealtimeProcessRunner,
         )

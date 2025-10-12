@@ -8,7 +8,7 @@ from typing import Tuple, TYPE_CHECKING
 from eloGraf.engine_plugin import EnginePlugin, register_plugin
 from eloGraf.settings_schema import EngineSettings
 from eloGraf.stt_engine import STTController, STTProcessRunner
-from eloGraf.nerd_controller import NerdDictationController, NerdDictationProcessRunner
+from .controller import NerdDictationController, NerdDictationProcessRunner
 
 if TYPE_CHECKING:  # pragma: no cover
     from eloGraf.settings import Settings

@@ -1,7 +1,7 @@
 """Tests for OpenAI Realtime controller."""
 
 import pytest
-from eloGraf.openai_realtime_controller import (
+from eloGraf.engines.openai.controller import (
     OpenAIRealtimeController,
     OpenAIRealtimeProcessRunner,
     OpenAIRealtimeState

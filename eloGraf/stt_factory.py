@@ -16,8 +16,8 @@ from eloGraf.engine_plugin import (
 from eloGraf.settings_schema import EngineSettings
 from eloGraf.stt_engine import STTController, STTProcessRunner
 
-# Ensure built-in plugins are registered on import
-from eloGraf import plugins as _builtin_plugins  # noqa: F401
+# Ensure built-in engines are registered on import
+from eloGraf import engines as _builtin_engines  # noqa: F401
 
 
 def _instantiate_settings(plugin: EnginePlugin, **kwargs) -> EngineSettings:

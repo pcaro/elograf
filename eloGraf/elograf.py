@@ -68,7 +68,7 @@ from eloGraf.model_repository import (
     load_model_index,
     model_list_path,
 )
-from eloGraf.nerd_controller import (  # type: ignore
+from eloGraf.engines.nerd.controller import (  # type: ignore
     NerdDictationController,
     NerdDictationProcessRunner,
     NerdDictationState,

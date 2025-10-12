@@ -8,7 +8,7 @@ from typing import Dict, Tuple, TYPE_CHECKING
 from eloGraf.engine_plugin import EnginePlugin, register_plugin, register_plugin_alias
 from eloGraf.settings_schema import GoogleCloudSettings
 from eloGraf.stt_engine import STTController, STTProcessRunner
-from eloGraf.google_cloud_speech_controller import (
+from .controller import (
     GoogleCloudSpeechController,
     GoogleCloudSpeechProcessRunner,
 )

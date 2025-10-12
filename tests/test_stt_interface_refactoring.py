@@ -5,24 +5,24 @@ from __future__ import annotations
 
 import pytest
 
-from eloGraf.nerd_controller import NerdDictationController
-from eloGraf.whisper_docker_controller import WhisperDockerController
+from eloGraf.engines.nerd.controller import NerdDictationController
+from eloGraf.engines.whisper.controller import WhisperDockerController
 
 # Conditional imports for engines with optional dependencies
 try:
-    from eloGraf.google_cloud_speech_controller import GoogleCloudSpeechController
+    from eloGraf.engines.google.controller import GoogleCloudSpeechController
     HAS_GOOGLE_CLOUD = True
 except ImportError:
     HAS_GOOGLE_CLOUD = False
 
 try:
-    from eloGraf.openai_realtime_controller import OpenAIRealtimeController
+    from eloGraf.engines.openai.controller import OpenAIRealtimeController
     HAS_OPENAI = True
 except ImportError:
     HAS_OPENAI = False
 
 try:
-    from eloGraf.assemblyai_realtime_controller import AssemblyAIRealtimeController
+    from eloGraf.engines.assemblyai.controller import AssemblyAIRealtimeController
     HAS_ASSEMBLYAI = True
 except ImportError:
     HAS_ASSEMBLYAI = False

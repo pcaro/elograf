@@ -2,7 +2,7 @@ import io
 
 import pytest
 
-from eloGraf.nerd_controller import (
+from eloGraf.engines.nerd.controller import (
     NerdDictationController,
     NerdDictationProcessRunner,
     NerdDictationState,

@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import Mock, patch
-from eloGraf.whisper_docker_controller import (
+from eloGraf.engines.whisper.controller import (
     WhisperDockerController,
     WhisperDockerProcessRunner,
     WhisperDockerState,
@@ -71,8 +71,8 @@ def test_controller_handle_exit():
     assert exit_codes == [0, 1]
 
 
-@patch('eloGraf.whisper_docker_controller.run')
-@patch('eloGraf.whisper_docker_controller.requests')
+@patch('eloGraf.engines.whisper.controller.run')
+@patch('eloGraf.engines.whisper.controller.requests')
 def test_runner_start_container_not_running(mock_requests, mock_run):
     controller = WhisperDockerController()
     runner = WhisperDockerProcessRunner(controller, container_name="test-whisper")
@@ -90,7 +90,7 @@ def test_runner_start_container_not_running(mock_requests, mock_run):
     assert controller.state == WhisperDockerState.READY
 
 
-@patch('eloGraf.whisper_docker_controller.run')
+@patch('eloGraf.engines.whisper.controller.run')
 def test_runner_is_container_running(mock_run):
     controller = WhisperDockerController()
     runner = WhisperDockerProcessRunner(controller, container_name="test-whisper")
@@ -134,7 +134,7 @@ def test_factory_creates_whisper_docker_engine():
 
 def test_factory_creates_nerd_dictation_engine():
     from eloGraf.stt_factory import create_stt_engine
-    from eloGraf.nerd_controller import NerdDictationController, NerdDictationProcessRunner
+    from eloGraf.engines.nerd.controller import NerdDictationController, NerdDictationProcessRunner
 
     controller, runner = create_stt_engine("nerd-dictation")
 

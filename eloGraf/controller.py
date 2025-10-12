@@ -5,7 +5,7 @@ from typing import Callable, Optional, Sequence, Dict
 from eloGraf.dictation import CommandBuildError, build_dictation_command
 from eloGraf.state_machine import DictationStateMachine
 from eloGraf.stt_engine import STTProcessRunner
-from eloGraf.nerd_controller import NerdDictationController, NerdDictationState
+from eloGraf.engines.nerd.controller import NerdDictationController, NerdDictationState
 
 CommandHandler = Callable[[], None]
 

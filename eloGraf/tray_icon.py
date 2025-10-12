@@ -14,10 +14,10 @@ from eloGraf.dictation import CommandBuildError, build_dictation_command
 from eloGraf.engine_manager import EngineManager
 from eloGraf.ipc_manager import IPCManager
 from eloGraf.stt_engine import STTController, STTProcessRunner
-from eloGraf.nerd_controller import NerdDictationState
-from eloGraf.whisper_docker_controller import WhisperDockerState
-from eloGraf.google_cloud_speech_controller import GoogleCloudSpeechState
-from eloGraf.openai_realtime_controller import OpenAIRealtimeState
+from eloGraf.engines.nerd.controller import NerdDictationState
+from eloGraf.engines.whisper.controller import WhisperDockerState
+from eloGraf.engines.google.controller import GoogleCloudSpeechState
+from eloGraf.engines.openai.controller import OpenAIRealtimeState
 from eloGraf.settings import DEFAULT_RATE, Settings
 from eloGraf.pidfile import remove_pid_file
 from eloGraf.state_machine import DictationStateMachine, IconState

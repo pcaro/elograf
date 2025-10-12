@@ -9,7 +9,7 @@ from typing import Dict, Tuple, TYPE_CHECKING
 from eloGraf.engine_plugin import EnginePlugin, register_plugin
 from eloGraf.settings_schema import WhisperSettings
 from eloGraf.stt_engine import STTController, STTProcessRunner
-from eloGraf.whisper_docker_controller import (
+from .controller import (
     WhisperDockerController,
     WhisperDockerProcessRunner,
 )
