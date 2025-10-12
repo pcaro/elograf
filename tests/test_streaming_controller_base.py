@@ -6,8 +6,8 @@ from enum import Enum, auto
 from eloGraf.base_controller import StreamingControllerBase
 
 
-class TestState(Enum):
-    """Test state enum for controller."""
+class SampleState(Enum):
+    """Sample state enum for controller testing."""
     IDLE = auto()
     RECORDING = auto()
     SUSPENDED = auto()
@@ -15,21 +15,21 @@ class TestState(Enum):
 
 
 STATE_MAP = {
-    "idle": TestState.IDLE,
-    "recording": TestState.RECORDING,
-    "suspended": TestState.SUSPENDED,
-    "failed": TestState.FAILED,
+    "idle": SampleState.IDLE,
+    "recording": SampleState.RECORDING,
+    "suspended": SampleState.SUSPENDED,
+    "failed": SampleState.FAILED,
 }
 
 
-class TestStreamingController(StreamingControllerBase[TestState]):
-    """Concrete test implementation of StreamingControllerBase."""
+class SampleStreamingController(StreamingControllerBase[SampleState]):
+    """Concrete sample implementation of StreamingControllerBase for testing."""
 
     def __init__(self):
         super().__init__(
-            initial_state=TestState.IDLE,
+            initial_state=SampleState.IDLE,
             state_map=STATE_MAP,
-            engine_name="TestEngine",
+            engine_name="SampleEngine",
         )
         self._stop_requested = False
 
@@ -60,29 +60,29 @@ class TestStreamingControllerBase(unittest.TestCase):
 
     def test_initial_suspended_state_is_false(self):
         """Controller should start with is_suspended = False."""
-        controller = TestStreamingController()
+        controller = SampleStreamingController()
         self.assertFalse(controller.is_suspended)
 
     def test_suspend_requested_sets_suspended_flag(self):
         """suspend_requested() should set _suspended to True."""
-        controller = TestStreamingController()
+        controller = SampleStreamingController()
         controller.suspend_requested()
         self.assertTrue(controller.is_suspended)
 
     def test_suspend_requested_transitions_to_suspended_state(self):
         """suspend_requested() should transition to 'suspended' state."""
-        controller = TestStreamingController()
+        controller = SampleStreamingController()
         states = []
         controller.add_state_listener(lambda s: states.append(s))
 
         controller.suspend_requested()
 
-        self.assertEqual(controller.state, TestState.SUSPENDED)
-        self.assertIn(TestState.SUSPENDED, states)
+        self.assertEqual(controller.state, SampleState.SUSPENDED)
+        self.assertIn(SampleState.SUSPENDED, states)
 
     def test_resume_requested_clears_suspended_flag(self):
         """resume_requested() should set _suspended to False."""
-        controller = TestStreamingController()
+        controller = SampleStreamingController()
         controller.suspend_requested()  # First suspend
         controller.resume_requested()    # Then resume
 
@@ -90,37 +90,37 @@ class TestStreamingControllerBase(unittest.TestCase):
 
     def test_resume_requested_transitions_to_recording_state(self):
         """resume_requested() should transition to 'recording' state."""
-        controller = TestStreamingController()
+        controller = SampleStreamingController()
         states = []
         controller.add_state_listener(lambda s: states.append(s))
 
         controller.suspend_requested()  # First suspend
         controller.resume_requested()    # Then resume
 
-        self.assertEqual(controller.state, TestState.RECORDING)
-        self.assertIn(TestState.RECORDING, states)
+        self.assertEqual(controller.state, SampleState.RECORDING)
+        self.assertIn(SampleState.RECORDING, states)
 
     def test_suspend_resume_cycle(self):
         """Multiple suspend/resume cycles should work correctly."""
-        controller = TestStreamingController()
+        controller = SampleStreamingController()
 
         # First cycle
         controller.suspend_requested()
         self.assertTrue(controller.is_suspended)
-        self.assertEqual(controller.state, TestState.SUSPENDED)
+        self.assertEqual(controller.state, SampleState.SUSPENDED)
 
         controller.resume_requested()
         self.assertFalse(controller.is_suspended)
-        self.assertEqual(controller.state, TestState.RECORDING)
+        self.assertEqual(controller.state, SampleState.RECORDING)
 
         # Second cycle
         controller.suspend_requested()
         self.assertTrue(controller.is_suspended)
-        self.assertEqual(controller.state, TestState.SUSPENDED)
+        self.assertEqual(controller.state, SampleState.SUSPENDED)
 
         controller.resume_requested()
         self.assertFalse(controller.is_suspended)
-        self.assertEqual(controller.state, TestState.RECORDING)
+        self.assertEqual(controller.state, SampleState.RECORDING)
 
 
 if __name__ == "__main__":
