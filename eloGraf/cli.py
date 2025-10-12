@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from typing import Optional
 
 from eloGraf.settings import Settings
-from eloGraf.stt_factory import get_available_engines
+from eloGraf.stt_factory import get_available_engines, describe_engine
+from eloGraf.engine_plugin import get_plugin
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,31 +40,44 @@ AVAILABLE_ENGINES = get_available_engines()
 
 def validate_engine(engine_name: str) -> Optional[CliExit]:
     """Validate engine name and return error if invalid."""
-    if engine_name not in AVAILABLE_ENGINES:
-        available = "\n".join(f"  - {engine}" for engine in AVAILABLE_ENGINES)
-        message = f"✗ Engine '{engine_name}' not found\n\nAvailable engines:\n{available}\n"
+    try:
+        get_plugin(engine_name)
+        return None
+    except ValueError:
+        available = "\n".join(
+            f"  - {name} ({describe_engine(name)})" for name in AVAILABLE_ENGINES
+        )
+        message = (
+            f"✗ Engine '{engine_name}' not found\n\n"
+            f"Available engines:\n{available}\n"
+        )
         return CliExit(code=1, stderr=message)
-    return None
+
 
 
 def handle_engine_commands(args, settings: Settings) -> Optional[CliExit]:
-    if not args.list_engines and not args.use_engine:
+    """Handle CLI options related to STT engine selection and listing."""
+    list_engines = getattr(args, "list_engines", False)
+    engine_override = getattr(args, "use_engine", None)
+
+    if not list_engines and not engine_override:
         return None
 
     settings.load()
 
-    if args.list_engines:
+    if list_engines:
         current_engine = settings.sttEngine
         lines = ["Available STT engines:", "-" * 80]
         for engine in AVAILABLE_ENGINES:
             marker = "●" if engine == current_engine else " "
-            lines.append(f"{marker} {engine}")
+            display = describe_engine(engine)
+            lines.append(f"{marker} {engine} — {display}")
         lines.append("")
         return CliExit(code=0, stdout="\n".join(lines) + "\n")
 
-    if args.use_engine:
+    if engine_override:
         # Validate but don't exit - let the app start with this engine
-        error = validate_engine(args.use_engine)
+        error = validate_engine(engine_override)
         if error:
             return error
 
@@ -71,21 +85,28 @@ def handle_engine_commands(args, settings: Settings) -> Optional[CliExit]:
 
 
 def handle_model_commands(args, settings: Settings) -> Optional[CliExit]:
+    """Handle CLI options related to model management."""
     # Check engine commands first
     engine_result = handle_engine_commands(args, settings)
     if engine_result is not None:
         return engine_result
 
-    if not args.list_models and not args.set_model:
+    list_models = getattr(args, "list_models", False)
+    model_to_set = getattr(args, "set_model", None)
+
+    if not list_models and not model_to_set:
         return None
 
     settings.load()
 
-    if args.list_models:
+    if list_models:
         if not settings.models:
             return CliExit(
                 code=0,
-                stdout="No models configured\n\nUse the GUI (elograf) to download or import models\n",
+                stdout=(
+                    "No models configured\n\n"
+                    "Use the GUI (elograf) to download or import models\n"
+                ),
             )
 
         current_model = settings.value("Model/name") if settings.contains("Model/name") else ""
@@ -105,14 +126,17 @@ def handle_model_commands(args, settings: Settings) -> Optional[CliExit]:
             )
         return CliExit(code=0, stdout="\n".join(lines) + "\n")
 
-    if args.set_model:
-        model_name = args.set_model
+    if model_to_set:
+        model_name = model_to_set
         for model in settings.models:
             if model["name"] == model_name:
                 settings.setValue("Model/name", model_name)
                 return CliExit(code=0, stdout=f"✓ Model set to '{model_name}'\n")
         available = "\n".join(f"  - {model['name']}" for model in settings.models)
-        message = f"✗ Model '{model_name}' not found\n\nAvailable models:\n{available}\n"
+        message = (
+            f"✗ Model '{model_name}' not found\n\n"
+            f"Available models:\n{available}\n"
+        )
         return CliExit(code=1, stderr=message)
 
     return None

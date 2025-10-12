@@ -10,11 +10,13 @@ import threading
 import time
 from enum import Enum, auto
 from pathlib import Path
-from subprocess import Popen, run, PIPE, CalledProcessError
+from subprocess import run, CalledProcessError
 from typing import Callable, Dict, List, Optional, Sequence
 
 import requests
 
+from eloGraf.audio_recorder import AudioRecorder
+from eloGraf.input_simulator import type_text
 from eloGraf.stt_engine import STTController, STTProcessRunner
 
 
@@ -116,6 +118,34 @@ class WhisperDockerController(STTController):
         for listener in self._exit_listeners:
             listener(return_code)
 
+    def transition_to(self, state: str) -> None:
+        """Transition to a named state using string identifier."""
+        state_lower = state.lower()
+        state_map = {
+            "idle": WhisperDockerState.IDLE,
+            "starting": WhisperDockerState.STARTING,
+            "ready": WhisperDockerState.READY,
+            "recording": WhisperDockerState.RECORDING,
+            "transcribing": WhisperDockerState.TRANSCRIBING,
+            "suspended": WhisperDockerState.SUSPENDED,
+            "failed": WhisperDockerState.FAILED,
+        }
+
+        if state_lower in state_map:
+            self._set_state(state_map[state_lower])
+        else:
+            logging.warning(f"Unknown state '{state}' for WhisperDocker controller")
+
+    def emit_transcription(self, text: str) -> None:
+        """Emit transcribed text to output listeners."""
+        self._emit_output(text)
+
+    def emit_error(self, message: str) -> None:
+        """Emit error message and transition to failed state."""
+        logging.error(f"WhisperDocker error: {message}")
+        self._emit_output(f"ERROR: {message}")
+        self._set_state(WhisperDockerState.FAILED)
+
 
 class WhisperDockerProcessRunner(STTProcessRunner):
     """Manages Whisper Docker container and audio recording/transcription."""
@@ -148,7 +178,7 @@ class WhisperDockerProcessRunner(STTProcessRunner):
         self._vad_enabled = vad_enabled
         self._vad_threshold = vad_threshold
         self._auto_reconnect = auto_reconnect
-        self._input_simulator = input_simulator or self._default_input_simulator
+        self._input_simulator = input_simulator or type_text
         self._recording_thread: Optional[threading.Thread] = None
         self._stop_recording = threading.Event()
         self._audio_recorder: Optional[AudioRecorder] = None
@@ -329,7 +359,8 @@ class WhisperDockerProcessRunner(STTProcessRunner):
         try:
             self._audio_recorder = AudioRecorder(
                 sample_rate=self._sample_rate,
-                channels=self._channels
+                channels=self._channels,
+                backend="pyaudio"
             )
             self._controller.set_recording()
 
@@ -445,67 +476,3 @@ class WhisperDockerProcessRunner(STTProcessRunner):
 
         return ""
 
-    @staticmethod
-    def _default_input_simulator(text: str) -> None:
-        """Default input simulator using dotool or xdotool."""
-        try:
-            # Try dotool first
-            run(["dotool", "type", text], check=True)
-        except (CalledProcessError, FileNotFoundError):
-            try:
-                # Fallback to xdotool
-                run(["xdotool", "type", "--", text], check=True)
-            except (CalledProcessError, FileNotFoundError):
-                logging.warning("Neither dotool nor xdotool available for input simulation")
-
-
-class AudioRecorder:
-    """Records audio chunks from the microphone using pyaudio."""
-
-    def __init__(self, sample_rate: int = 16000, channels: int = 1):
-        try:
-            import pyaudio
-            import wave
-        except ImportError:
-            raise RuntimeError("pyaudio is required for audio recording. Install with: pip install pyaudio")
-
-        self._sample_rate = sample_rate
-        self._channels = channels
-        self._pyaudio = pyaudio.PyAudio()
-        self._format = pyaudio.paInt16
-
-    def record_chunk(self, duration: float = 5.0) -> bytes:
-        """Record audio for specified duration and return WAV bytes."""
-        import wave
-
-        stream = self._pyaudio.open(
-            format=self._format,
-            channels=self._channels,
-            rate=self._sample_rate,
-            input=True,
-            frames_per_buffer=1024,
-        )
-
-        frames = []
-        chunk_count = int(self._sample_rate / 1024 * duration)
-
-        for _ in range(chunk_count):
-            data = stream.read(1024)
-            frames.append(data)
-
-        stream.stop_stream()
-        stream.close()
-
-        # Create WAV file in memory
-        wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, 'wb') as wav_file:
-            wav_file.setnchannels(self._channels)
-            wav_file.setsampwidth(self._pyaudio.get_sample_size(self._format))
-            wav_file.setframerate(self._sample_rate)
-            wav_file.writeframes(b''.join(frames))
-
-        return wav_buffer.getvalue()
-
-    def __del__(self):
-        if hasattr(self, '_pyaudio'):
-            self._pyaudio.terminate()

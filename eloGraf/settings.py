@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
+import os
+from typing import Dict, List, Optional, Union
 
 from PyQt6.QtCore import QSettings
+
+from eloGraf.engine_plugin import normalize_engine_name, get_plugin
+from eloGraf.settings_schema import (
+    WhisperSettings,
+    GoogleCloudSettings,
+    OpenAISettings,
+    AssemblyAISettings,
+    EngineSettings,
+)
 
 DEFAULT_RATE: int = 44100
 
@@ -12,7 +22,13 @@ class Settings:
     """Wrapper around QSettings storing Elograf preferences and models."""
 
     def __init__(self, backend: Optional[QSettings] = None) -> None:
-        self._backend = backend or QSettings("Elograf", "Elograf")
+        if backend is None:
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                backend = QSettings(QSettings.Format.IniFormat, QSettings.Scope.UserScope, "ElografTests", "Elograf")
+                backend.clear()
+            else:
+                backend = QSettings("Elograf", "Elograf")
+        self._backend = backend
         self.models: List[Dict[str, str]] = []
         self.precommand: str = ""
         self.postcommand: str = ""
@@ -91,6 +107,7 @@ class Settings:
         self.resumeShortcut = backend.value("ResumeShortcut", "", type=str)
         self.toggleShortcut = backend.value("ToggleShortcut", "", type=str)
         self.sttEngine = backend.value("STTEngine", "nerd-dictation", type=str)
+        self.sttEngine = normalize_engine_name(self.sttEngine)
         self.whisperModel = backend.value("WhisperModel", "base", type=str)
         self.whisperLanguage = backend.value("WhisperLanguage", "", type=str)
         self.whisperPort = backend.value("WhisperPort", 9000, type=int)
@@ -109,7 +126,14 @@ class Settings:
         self.googleCloudVadEnabled = backend.value("GoogleCloudVadEnabled", True, type=bool)
         self.googleCloudVadThreshold = backend.value("GoogleCloudVadThreshold", 500.0, type=float)
         self.openaiApiKey = backend.value("OpenaiApiKey", "", type=str)
-        self.openaiModel = backend.value("OpenaiModel", "gpt-4o-realtime-preview", type=str)
+        self.openaiModel = backend.value("OpenaiModel", "gpt-4o-transcribe", type=str)
+        legacy_session_models = {
+            "gpt-4o-realtime-preview": "gpt-4o-transcribe",
+            "gpt-4o-mini-realtime-preview": "gpt-4o-mini-transcribe",
+        }
+        if self.openaiModel in legacy_session_models:
+            self.openaiModel = legacy_session_models[self.openaiModel]
+            backend.setValue("OpenaiModel", self.openaiModel)
         self.openaiApiVersion = backend.value("OpenaiApiVersion", "2025-08-28", type=str)
         self.openaiSampleRate = backend.value("OpenaiSampleRate", 16000, type=int)
         self.openaiChannels = backend.value("OpenaiChannels", 1, type=int)
@@ -361,3 +385,87 @@ class Settings:
                     location = loc
                     break
         return name, location
+
+    def get_engine_settings(
+        self, engine_type: Optional[str] = None
+    ) -> Union[WhisperSettings, GoogleCloudSettings, OpenAISettings, AssemblyAISettings, EngineSettings]:
+        """
+        Get type-safe engine settings dataclass for the requested engine.
+
+        Args:
+            engine_type: Optional override; defaults to current ``sttEngine``.
+
+        Returns:
+            Dataclass instance with validated settings for the engine.
+        """
+        requested_type = engine_type or self.sttEngine
+        canonical_type = normalize_engine_name(requested_type)
+
+        if canonical_type == "whisper-docker":
+            return WhisperSettings(
+                engine_type=canonical_type,
+                device_name=self.deviceName,
+                model=self.whisperModel,
+                port=self.whisperPort,
+                language=self.whisperLanguage or None,
+                chunk_duration=self.whisperChunkDuration,
+                sample_rate=self.whisperSampleRate,
+                channels=self.whisperChannels,
+                vad_enabled=self.whisperVadEnabled,
+                vad_threshold=self.whisperVadThreshold,
+                auto_reconnect=self.whisperAutoReconnect,
+            )
+        if canonical_type == "google-cloud-speech":
+            return GoogleCloudSettings(
+                engine_type=canonical_type,
+                device_name=self.deviceName,
+                credentials_path=self.googleCloudCredentialsPath,
+                project_id=self.googleCloudProjectId,
+                language_code=self.googleCloudLanguageCode,
+                model=self.googleCloudModel,
+                sample_rate=self.googleCloudSampleRate,
+                channels=self.googleCloudChannels,
+                vad_enabled=self.googleCloudVadEnabled,
+                vad_threshold=self.googleCloudVadThreshold,
+            )
+        if canonical_type == "openai-realtime":
+            return OpenAISettings(
+                engine_type=canonical_type,
+                device_name=self.deviceName,
+                api_key=self.openaiApiKey,
+                model=self.openaiModel,
+                api_version=self.openaiApiVersion,
+                sample_rate=self.openaiSampleRate,
+                channels=self.openaiChannels,
+                vad_enabled=self.openaiVadEnabled,
+                vad_threshold=self.openaiVadThreshold,
+                vad_prefix_padding_ms=self.openaiVadPrefixPaddingMs,
+                vad_silence_duration_ms=self.openaiVadSilenceDurationMs,
+                language=self.openaiLanguage,
+            )
+        if canonical_type == "assemblyai":
+            return AssemblyAISettings(
+                engine_type=canonical_type,
+                device_name=self.deviceName,
+                api_key=self.assemblyApiKey,
+                model=self.assemblyModel,
+                language=self.assemblyLanguage,
+                sample_rate=self.assemblySampleRate,
+                channels=self.assemblyChannels,
+            )
+        return EngineSettings(
+            engine_type=canonical_type,
+            device_name=self.deviceName,
+        )
+
+    def update_from_dataclass(
+        self, engine_settings: Union[WhisperSettings, GoogleCloudSettings, OpenAISettings, AssemblyAISettings]
+    ) -> None:
+        """
+        Update settings from a dataclass instance via its plugin.
+
+        Args:
+            engine_settings: Validated engine settings dataclass.
+        """
+        plugin = get_plugin(engine_settings.engine_type)
+        plugin.apply_to_settings(self, engine_settings)

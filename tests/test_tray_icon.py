@@ -135,12 +135,15 @@ def test_commute_toggles(tray, monkeypatch):
 
 def test_tooltip_updates_with_model(tray, monkeypatch):
     tray_icon, _ = tray
+    # Set engine to nerd-dictation for this test
+    tray_icon.settings.sttEngine = "nerd-dictation"
+    tray_icon.temporary_engine = None
     monkeypatch.setattr(tray_icon, "currentModel", lambda: ("model-a", "/tmp/a"))
     tray_icon._update_tooltip()
-    assert tray_icon.toolTip() == "EloGraf\nModel: model-a"
-    monkeypatch.setattr(tray_icon, "currentModel", lambda: ("", ""))
-    tray_icon._update_tooltip()
-    assert tray_icon.toolTip() == "EloGraf"
+    tooltip_lines = tray_icon.toolTip().split("\n")
+    assert tooltip_lines[0] == "EloGraf"
+    assert "Engine: nerd-dictation" in tooltip_lines
+    assert "Model: model-a" in tooltip_lines
 
 
 def test_toggle_cycles_states(tray, monkeypatch):

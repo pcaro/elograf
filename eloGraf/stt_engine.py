@@ -64,6 +64,46 @@ class STTController(ABC):
         """Handle process termination with the given return code."""
         pass
 
+    @abstractmethod
+    def transition_to(self, state: str) -> None:
+        """
+        Transition to a named state.
+
+        State names are engine-specific but typically include:
+        - 'idle', 'starting', 'loading', 'ready', 'recording', 'transcribing',
+          'suspended', 'stopping', 'failed', 'connecting'
+
+        Args:
+            state: String identifier for the target state (case-insensitive).
+        """
+        pass
+
+    @abstractmethod
+    def emit_transcription(self, text: str) -> None:
+        """
+        Emit transcribed text to output listeners.
+
+        This method should be used to send final transcription results
+        to all registered output listeners.
+
+        Args:
+            text: The transcribed text to emit.
+        """
+        pass
+
+    @abstractmethod
+    def emit_error(self, message: str) -> None:
+        """
+        Emit error message and transition to failed state.
+
+        This method should log the error, notify output listeners,
+        and transition the controller to a failed state.
+
+        Args:
+            message: The error message to emit.
+        """
+        pass
+
 
 class STTProcessRunner(ABC):
     """Abstract process runner that manages the STT engine lifecycle."""

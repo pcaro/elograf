@@ -7,13 +7,13 @@ import threading
 import time
 from enum import Enum, auto
 from typing import Callable, Dict, List, Optional
-from subprocess import Popen, PIPE
-import shutil
 
 import requests
 import websocket
 
+from eloGraf.audio_recorder import AudioRecorder
 from eloGraf.stt_engine import STTController, STTProcessRunner
+from eloGraf.input_simulator import type_text
 
 
 class AssemblyAIRealtimeState(Enum):
@@ -58,18 +58,18 @@ class AssemblyAIRealtimeController(STTController):
 
     def start(self) -> None:
         self._stop_requested = False
-        self._set_state(AssemblyAIRealtimeState.STARTING)
+        self.transition_to("starting")
 
     def stop_requested(self) -> None:
         self._stop_requested = True
 
     def suspend_requested(self) -> None:
         self._suspended = True
-        self._set_state(AssemblyAIRealtimeState.SUSPENDED)
+        self.transition_to("suspended")
 
     def resume_requested(self) -> None:
         self._suspended = False
-        self._set_state(AssemblyAIRealtimeState.RECORDING)
+        self.transition_to("recording")
 
     @property
     def is_suspended(self) -> bool:
@@ -77,29 +77,29 @@ class AssemblyAIRealtimeController(STTController):
 
     def fail_to_start(self) -> None:
         self._stop_requested = False
-        self._set_state(AssemblyAIRealtimeState.FAILED)
+        self.transition_to("failed")
         self._emit_exit(1)
 
     def set_connecting(self) -> None:
-        self._set_state(AssemblyAIRealtimeState.CONNECTING)
+        self.transition_to("connecting")
 
     def set_ready(self) -> None:
-        self._set_state(AssemblyAIRealtimeState.READY)
+        self.transition_to("ready")
 
     def set_recording(self) -> None:
-        self._set_state(AssemblyAIRealtimeState.RECORDING)
+        self.transition_to("recording")
 
     def set_transcribing(self) -> None:
-        self._set_state(AssemblyAIRealtimeState.TRANSCRIBING)
+        self.transition_to("transcribing")
 
     def handle_output(self, line: str) -> None:
         self._emit_output(line)
 
     def handle_exit(self, return_code: int) -> None:
         if return_code == 0:
-            self._set_state(AssemblyAIRealtimeState.IDLE)
+            self.transition_to("idle")
         else:
-            self._set_state(AssemblyAIRealtimeState.FAILED)
+            self.transition_to("failed")
         self._emit_exit(return_code)
         self._stop_requested = False
 
@@ -117,6 +117,35 @@ class AssemblyAIRealtimeController(STTController):
     def _emit_exit(self, return_code: int) -> None:
         for listener in self._exit_listeners:
             listener(return_code)
+
+    def transition_to(self, state: str) -> None:
+        """Transition to a named state using string identifier."""
+        state_lower = state.lower()
+        state_map = {
+            "idle": AssemblyAIRealtimeState.IDLE,
+            "starting": AssemblyAIRealtimeState.STARTING,
+            "connecting": AssemblyAIRealtimeState.CONNECTING,
+            "ready": AssemblyAIRealtimeState.READY,
+            "recording": AssemblyAIRealtimeState.RECORDING,
+            "transcribing": AssemblyAIRealtimeState.TRANSCRIBING,
+            "suspended": AssemblyAIRealtimeState.SUSPENDED,
+            "failed": AssemblyAIRealtimeState.FAILED,
+        }
+
+        if state_lower in state_map:
+            self._set_state(state_map[state_lower])
+        else:
+            logging.warning(f"Unknown state '{state}' for AssemblyAIRealtime controller")
+
+    def emit_transcription(self, text: str) -> None:
+        """Emit transcribed text to output listeners."""
+        self._emit_output(text)
+
+    def emit_error(self, message: str) -> None:
+        """Emit error message and transition to failed state."""
+        logging.error(f"AssemblyAIRealtime error: {message}")
+        self._emit_output(f"ERROR: {message}")
+        self.transition_to("failed")
 
 
 class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
@@ -142,7 +171,7 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
         self._sample_rate = sample_rate
         self._channels = channels
         self._chunk_duration = chunk_duration
-        self._input_simulator = input_simulator or self._default_input_simulator
+        self._input_simulator = input_simulator or type_text
         self._pulse_device = pulse_device
         self._ws_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
@@ -168,6 +197,7 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
 
         if not self._api_key:
             logging.error("AssemblyAI API key is required")
+            self._controller.emit_error("AssemblyAI API key is required")
             self._controller.fail_to_start()
             return False
 
@@ -175,6 +205,7 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
             import websocket
         except ImportError:
             logging.error("websocket-client is required for AssemblyAI realtime")
+            self._controller.emit_error("websocket-client package is required")
             self._controller.fail_to_start()
             return False
 
@@ -196,6 +227,7 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
         else:
             if not token:
                 logging.error("AssemblyAI realtime token request failed")
+                self._controller.emit_error("AssemblyAI realtime token request failed")
                 self._controller.fail_to_start()
                 return False
             query = [
@@ -268,6 +300,7 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
             )
         except requests.RequestException as exc:
             logging.error("Failed to reach AssemblyAI realtime token endpoint: %s", exc)
+            self._controller.emit_error(f"Failed to reach AssemblyAI realtime token endpoint: {exc}")
             self.fatal_error = True
             return None
 
@@ -296,6 +329,9 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
                 status,
                 error_message,
             )
+            self._controller.emit_error(
+                f"Failed to obtain AssemblyAI realtime token ({status}): {error_message}"
+            )
             self.fatal_error = True
             return None
 
@@ -315,12 +351,12 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
 
     def _on_open(self, ws) -> None:
         logging.info("AssemblyAI Realtime WebSocket connected")
-        self._controller.set_connecting()
+        self._controller.transition_to("connecting")
 
         # Start audio loop
         audio_thread = threading.Thread(target=self._audio_loop, daemon=True)
         audio_thread.start()
-        self._controller.set_ready()
+        self._controller.transition_to("ready")
 
     def _on_message(self, ws, message: str) -> None:
         try:
@@ -341,24 +377,35 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
             text = text.strip()
             is_final = data.get("turn_is_final") or data.get("turn_is_formatted")
             if text and (message_type != "Turn" or is_final):
-                self._controller.handle_output(text)
+                self._controller.transition_to("transcribing")
+                self._controller.emit_transcription(text)
                 self._input_simulator(text)
         elif message_type in ("SessionBegins", "Begin"):
             self._session_active = True
-            self._controller.set_recording()
+            self._controller.transition_to("recording")
         elif message_type in ("SessionTerminated", "Termination"):
             self._session_active = False
         elif message_type in ("Error", "error"):
             logging.error("AssemblyAI realtime error: %s", data)
+            message = None
+            if isinstance(data, dict):
+                message = data.get("error") or data.get("message")
+            if not message:
+                message = str(data)
+            self._controller.emit_error(message)
         else:
             logging.debug("AssemblyAI message: %s", data)
 
     def _on_error(self, ws, error) -> None:
         logging.error("AssemblyAI WebSocket error: %s", error)
+        if error:
+            self._controller.emit_error(str(error))
 
     def _on_close(self, ws, close_status_code, close_msg) -> None:
         logging.info("AssemblyAI WebSocket closed: %s - %s", close_status_code, close_msg)
         if not self._stop_event.is_set():
+            reason = f"AssemblyAI WebSocket closed unexpectedly: {close_status_code} - {close_msg}"
+            self._controller.emit_error(reason)
             self._controller.handle_exit(1)
 
     def _audio_loop(self) -> None:
@@ -366,9 +413,10 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
             self._audio_recorder = AudioRecorder(
                 sample_rate=self._sample_rate,
                 channels=self._channels,
+                backend="parec",
                 device=self._pulse_device,
             )
-            self._controller.set_recording()
+            self._controller.transition_to("recording")
             logging.info("AssemblyAI audio capture started")
 
             while not self._stop_event.is_set():
@@ -392,7 +440,7 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
                         else:
                             audio_payload = base64.b64encode(chunk).decode("utf-8")
                             self._ws.send(json.dumps({"audio_data": audio_payload}))
-                        self._controller.set_transcribing()
+                        self._controller.transition_to("transcribing")
                     except Exception as exc:
                         logging.error("Failed to send audio chunk to AssemblyAI: %s", exc)
                         break
@@ -409,7 +457,8 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
                 except Exception:
                     pass
         except Exception as exc:
-            logging.error("AssemblyAI audio loop error: %s", exc)
+            logging.exception("AssemblyAI audio loop error")
+            self._controller.emit_error(f"AssemblyAI audio loop error: {exc}")
             self._controller.handle_exit(1)
         finally:
             try:
@@ -424,10 +473,6 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
     def _extract_raw_audio(self, wav_data: bytes) -> bytes:
         return wav_data[44:]
 
-    @staticmethod
-    def _default_input_simulator(text: str) -> None:
-        from subprocess import run, CalledProcessError
-
         try:
             run(["dotool", "type", text], check=True)
         except (CalledProcessError, FileNotFoundError):
@@ -435,86 +480,3 @@ class AssemblyAIRealtimeProcessRunner(STTProcessRunner):
                 run(["xdotool", "type", "--", text], check=True)
             except (CalledProcessError, FileNotFoundError):
                 logging.warning("Neither dotool nor xdotool available for input simulation")
-
-
-class AudioRecorder:
-    """Capture audio from PulseAudio using parec."""
-
-    def __init__(self, sample_rate: int = 16000, channels: int = 1, device: Optional[str] = None):
-        if shutil.which("parec") is None:
-            raise RuntimeError("parec is required for AssemblyAI realtime. Install pulseaudio-utils.")
-        self._sample_rate = sample_rate
-        self._channels = channels
-        self._sample_width = 2
-        self._device = device
-        self._parec: Optional[Popen] = None
-        self._start_parec()
-
-    def _build_command(self) -> List[str]:
-        command = [
-            "parec",
-            "--format=s16le",
-            f"--rate={self._sample_rate}",
-            f"--channels={self._channels}",
-        ]
-        if self._device and self._device != "default":
-            command.append(f"--device={self._device}")
-        return command
-
-    def _start_parec(self) -> None:
-        command = self._build_command()
-        try:
-            self._parec = Popen(command, stdout=PIPE, stderr=PIPE)
-        except OSError as exc:
-            raise RuntimeError(f"Failed to start parec: {exc}") from exc
-        if not self._parec.stdout:
-            raise RuntimeError("parec process has no stdout")
-
-    def _read_bytes(self, size: int) -> bytes:
-        if not self._parec or not self._parec.stdout:
-            raise RuntimeError("parec process not running")
-        data = b""
-        while len(data) < size:
-            chunk = self._parec.stdout.read(size - len(data))
-            if not chunk:
-                self._restart_parec()
-                continue
-            data += chunk
-        return data
-
-    def _restart_parec(self) -> None:
-        if self._parec:
-            try:
-                self._parec.kill()
-            except Exception:
-                pass
-            self._parec.wait(timeout=1)
-        self._start_parec()
-
-    def record_chunk(self, duration: float) -> bytes:
-        bytes_needed = int(self._sample_rate * duration) * self._channels * self._sample_width
-        min_bytes = self._sample_rate * self._channels * self._sample_width // 10
-        if bytes_needed < min_bytes:
-            bytes_needed = min_bytes
-        raw_audio = self._read_bytes(bytes_needed)
-        import wave
-        import io
-
-        wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, 'wb') as wav_file:
-            wav_file.setnchannels(self._channels)
-            wav_file.setsampwidth(self._sample_width)
-            wav_file.setframerate(self._sample_rate)
-            wav_file.writeframes(raw_audio)
-        return wav_buffer.getvalue()
-
-    def __del__(self):
-        if hasattr(self, "_parec") and self._parec:
-            try:
-                self._parec.kill()
-            except Exception:
-                pass
-            try:
-                self._parec.wait(timeout=1)
-            except Exception:
-                pass

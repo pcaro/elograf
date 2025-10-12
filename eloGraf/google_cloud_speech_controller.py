@@ -10,15 +10,16 @@ import threading
 import time
 from enum import Enum, auto
 from pathlib import Path
-from subprocess import run, CalledProcessError
 from typing import Callable, Dict, List, Optional, Sequence
 
 from eloGraf.stt_engine import STTController, STTProcessRunner
+from eloGraf.input_simulator import type_text
 
 
 class GoogleCloudSpeechState(Enum):
     IDLE = auto()
     STARTING = auto()
+    CONNECTING = auto()
     READY = auto()
     RECORDING = auto()
     TRANSCRIBING = auto()
@@ -57,18 +58,18 @@ class GoogleCloudSpeechController(STTController):
 
     def start(self) -> None:
         self._stop_requested = False
-        self._set_state(GoogleCloudSpeechState.STARTING)
+        self.transition_to("starting")
 
     def stop_requested(self) -> None:
         self._stop_requested = True
 
     def suspend_requested(self) -> None:
         self._suspended = True
-        self._set_state(GoogleCloudSpeechState.SUSPENDED)
+        self.transition_to("suspended")
 
     def resume_requested(self) -> None:
         self._suspended = False
-        self._set_state(GoogleCloudSpeechState.RECORDING)
+        self.transition_to("recording")
 
     @property
     def is_suspended(self) -> bool:
@@ -76,26 +77,26 @@ class GoogleCloudSpeechController(STTController):
 
     def fail_to_start(self) -> None:
         self._stop_requested = False
-        self._set_state(GoogleCloudSpeechState.FAILED)
+        self.transition_to("failed")
         self._emit_exit(1)
 
     def set_ready(self) -> None:
-        self._set_state(GoogleCloudSpeechState.READY)
+        self.transition_to("ready")
 
     def set_recording(self) -> None:
-        self._set_state(GoogleCloudSpeechState.RECORDING)
+        self.transition_to("recording")
 
     def set_transcribing(self) -> None:
-        self._set_state(GoogleCloudSpeechState.TRANSCRIBING)
+        self.transition_to("transcribing")
 
     def handle_output(self, line: str) -> None:
         self._emit_output(line)
 
     def handle_exit(self, return_code: int) -> None:
         if return_code == 0:
-            self._set_state(GoogleCloudSpeechState.IDLE)
+            self.transition_to("idle")
         else:
-            self._set_state(GoogleCloudSpeechState.FAILED)
+            self.transition_to("failed")
         self._emit_exit(return_code)
         self._stop_requested = False
 
@@ -113,6 +114,35 @@ class GoogleCloudSpeechController(STTController):
     def _emit_exit(self, return_code: int) -> None:
         for listener in self._exit_listeners:
             listener(return_code)
+
+    def transition_to(self, state: str) -> None:
+        """Transition to a named state using string identifier."""
+        state_lower = state.lower()
+        state_map = {
+            "idle": GoogleCloudSpeechState.IDLE,
+            "starting": GoogleCloudSpeechState.STARTING,
+            "connecting": GoogleCloudSpeechState.CONNECTING,
+            "ready": GoogleCloudSpeechState.READY,
+            "recording": GoogleCloudSpeechState.RECORDING,
+            "transcribing": GoogleCloudSpeechState.TRANSCRIBING,
+            "suspended": GoogleCloudSpeechState.SUSPENDED,
+            "failed": GoogleCloudSpeechState.FAILED,
+        }
+
+        if state_lower in state_map:
+            self._set_state(state_map[state_lower])
+        else:
+            logging.warning(f"Unknown state '{state}' for GoogleCloudSpeech controller")
+
+    def emit_transcription(self, text: str) -> None:
+        """Emit transcribed text to output listeners."""
+        self._emit_output(text)
+
+    def emit_error(self, message: str) -> None:
+        """Emit error message and transition to failed state."""
+        logging.error(f"GoogleCloudSpeech error: {message}")
+        self._emit_output(f"ERROR: {message}")
+        self.transition_to("failed")
 
 
 class GoogleCloudSpeechProcessRunner(STTProcessRunner):
@@ -143,7 +173,7 @@ class GoogleCloudSpeechProcessRunner(STTProcessRunner):
         self._chunk_duration = chunk_duration
         self._vad_enabled = vad_enabled
         self._vad_threshold = vad_threshold
-        self._input_simulator = input_simulator or self._default_input_simulator
+        self._input_simulator = input_simulator or type_text
         self._recording_thread: Optional[threading.Thread] = None
         self._stop_recording = threading.Event()
         self._audio_recorder: Optional[AudioRecorder] = None
@@ -157,6 +187,7 @@ class GoogleCloudSpeechProcessRunner(STTProcessRunner):
 
         # Verify credentials
         if not self._verify_credentials():
+            self._controller.emit_error("Google Cloud credentials are not configured correctly")
             self._controller.fail_to_start()
             return False
 
@@ -168,10 +199,11 @@ class GoogleCloudSpeechProcessRunner(STTProcessRunner):
                 "google-cloud-speech is not installed. "
                 "Install with: pip install google-cloud-speech"
             )
+            self._controller.emit_error("google-cloud-speech package is required")
             self._controller.fail_to_start()
             return False
 
-        self._controller.set_ready()
+        self._controller.transition_to("ready")
 
         # Start streaming in background thread
         self._stop_recording.clear()
@@ -232,6 +264,7 @@ class GoogleCloudSpeechProcessRunner(STTProcessRunner):
             from google.cloud.speech_v2.types import cloud_speech as cloud_speech_types
 
             client = SpeechClient()
+            self._controller.transition_to("connecting")
 
             # Build recognizer name
             if self._project_id:
@@ -246,7 +279,8 @@ class GoogleCloudSpeechProcessRunner(STTProcessRunner):
                     recognizer = f"projects/{project_id}/locations/global/recognizers/_"
                     logging.info(f"Using project: {project_id}")
                 except Exception as exc:
-                    logging.error(f"Failed to determine project ID: {exc}")
+                    logging.exception("Failed to determine project ID")
+                    self._controller.emit_error(f"Failed to determine project ID: {exc}")
                     self._controller.handle_exit(1)
                     return
 
@@ -265,7 +299,7 @@ class GoogleCloudSpeechProcessRunner(STTProcessRunner):
                 sample_rate=self._sample_rate,
                 channels=self._channels,
             )
-            self._controller.set_recording()
+            self._controller.transition_to("recording")
 
             # Generator for audio chunks
             def audio_generator():
@@ -308,13 +342,13 @@ class GoogleCloudSpeechProcessRunner(STTProcessRunner):
                     if len(raw_audio) > max_chunk_size:
                         raw_audio = raw_audio[:max_chunk_size]
 
-                    self._controller.set_transcribing()
+                    self._controller.transition_to("transcribing")
                     yield cloud_speech_types.StreamingRecognizeRequest(audio=raw_audio)
 
             # Stream audio and get responses
             responses = client.streaming_recognize(requests=audio_generator())
 
-            self._controller.set_recording()
+            self._controller.transition_to("recording")
 
             # Process responses
             for response in responses:
@@ -329,11 +363,12 @@ class GoogleCloudSpeechProcessRunner(STTProcessRunner):
 
                     # Only output final results
                     if result.is_final and transcript.strip():
-                        self._controller.handle_output(f"Transcribed: {transcript}")
+                        self._controller.emit_transcription(transcript)
                         self._input_simulator(transcript)
 
         except Exception as exc:
-            logging.error(f"Streaming loop error: {exc}")
+            logging.exception("Streaming loop error")
+            self._controller.emit_error(f"Streaming loop error: {exc}")
             self._controller.handle_exit(1)
 
     def _calculate_audio_level(self, audio_data: bytes) -> float:
@@ -358,20 +393,6 @@ class GoogleCloudSpeechProcessRunner(STTProcessRunner):
         """Extract raw PCM audio from WAV file (skip 44-byte header)."""
         # WAV header is typically 44 bytes
         return wav_data[44:]
-
-    @staticmethod
-    def _default_input_simulator(text: str) -> None:
-        """Default input simulator using dotool or xdotool."""
-        try:
-            # Try dotool first
-            run(["dotool", "type", text], check=True)
-        except (CalledProcessError, FileNotFoundError):
-            try:
-                # Fallback to xdotool
-                run(["xdotool", "type", "--", text], check=True)
-            except (CalledProcessError, FileNotFoundError):
-                logging.warning("Neither dotool nor xdotool available for input simulation")
-
 
 class AudioRecorder:
     """Records audio chunks from the microphone using pyaudio."""

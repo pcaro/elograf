@@ -110,6 +110,35 @@ class NerdDictationController(STTController):
         for listener in self._exit_listeners:
             listener(return_code)
 
+    def transition_to(self, state: str) -> None:
+        """Transition to a named state using string identifier."""
+        state_lower = state.lower()
+        state_map = {
+            "idle": NerdDictationState.IDLE,
+            "starting": NerdDictationState.STARTING,
+            "loading": NerdDictationState.LOADING,
+            "ready": NerdDictationState.READY,
+            "dictating": NerdDictationState.DICTATING,
+            "suspended": NerdDictationState.SUSPENDED,
+            "stopping": NerdDictationState.STOPPING,
+            "failed": NerdDictationState.FAILED,
+        }
+
+        if state_lower in state_map:
+            self._set_state(state_map[state_lower])
+        else:
+            logging.warning(f"Unknown state '{state}' for NerdDictation controller")
+
+    def emit_transcription(self, text: str) -> None:
+        """Emit transcribed text to output listeners."""
+        self._emit_output(text)
+
+    def emit_error(self, message: str) -> None:
+        """Emit error message and transition to failed state."""
+        logging.error(f"NerdDictation error: {message}")
+        self._emit_output(f"ERROR: {message}")
+        self._set_state(NerdDictationState.FAILED)
+
 
 class NerdDictationProcessRunner(STTProcessRunner):
     """Launch nerd-dictation and feed output into the controller."""

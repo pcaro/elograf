@@ -18,7 +18,6 @@ This document tracks potential improvements and features to implement in Elograf
 - [x] Voice Activity Detection (VAD) for Whisper Docker, Google Cloud Speech, and OpenAI Realtime
 - [x] Auto-reconnect functionality for Whisper Docker
 - [x] Configurable audio quality (sample rate, channels) for all cloud-based engines
-- [ ] Implement dictation history/log
 - [ ] Add voice commands for punctuation and formatting
 - [x] Add number-to-digits conversion option (nerd-dictation --numbers-as-digits)
 - [x] Configure timeout and idle time settings
@@ -26,7 +25,6 @@ This document tracks potential improvements and features to implement in Elograf
 - [ ] Add output mode selection (keyboard simulation vs stdout)
 - [x] Refresh STT engine after saving advanced settings so changes apply without restarting
 - [x] Fix OpenAI Realtime session payload to include the selected model when connecting
-- [ ] Restore tray direct-click toggle behaviour or update the DirectClick setting/tests accordingly
 - [ ] Integrate faster-whisper + whisper-streaming as a realtime engine option
 
 ### STT Engine Research
@@ -58,11 +56,6 @@ This document tracks potential improvements and features to implement in Elograf
 - [ ] Test and improve macOS support
 - [ ] Add support for other Wayland compositors beyond KDE
 
-### Performance
-
-- [ ] Optimize model loading time
-- [ ] Add caching for frequently used models
-- [ ] Reduce memory footprint
 
 ### Documentation
 

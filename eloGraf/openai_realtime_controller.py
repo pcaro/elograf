@@ -16,6 +16,7 @@ import shutil
 from typing import Callable, Dict, List, Optional, Sequence
 
 from eloGraf.stt_engine import STTController, STTProcessRunner
+from eloGraf.input_simulator import type_text
 
 
 class OpenAIRealtimeState(Enum):
@@ -60,18 +61,18 @@ class OpenAIRealtimeController(STTController):
 
     def start(self) -> None:
         self._stop_requested = False
-        self._set_state(OpenAIRealtimeState.STARTING)
+        self.transition_to("starting")
 
     def stop_requested(self) -> None:
         self._stop_requested = True
 
     def suspend_requested(self) -> None:
         self._suspended = True
-        self._set_state(OpenAIRealtimeState.SUSPENDED)
+        self.transition_to("suspended")
 
     def resume_requested(self) -> None:
         self._suspended = False
-        self._set_state(OpenAIRealtimeState.RECORDING)
+        self.transition_to("recording")
 
     @property
     def is_suspended(self) -> bool:
@@ -79,29 +80,29 @@ class OpenAIRealtimeController(STTController):
 
     def fail_to_start(self) -> None:
         self._stop_requested = False
-        self._set_state(OpenAIRealtimeState.FAILED)
+        self.transition_to("failed")
         self._emit_exit(1)
 
     def set_connecting(self) -> None:
-        self._set_state(OpenAIRealtimeState.CONNECTING)
+        self.transition_to("connecting")
 
     def set_ready(self) -> None:
-        self._set_state(OpenAIRealtimeState.READY)
+        self.transition_to("ready")
 
     def set_recording(self) -> None:
-        self._set_state(OpenAIRealtimeState.RECORDING)
+        self.transition_to("recording")
 
     def set_transcribing(self) -> None:
-        self._set_state(OpenAIRealtimeState.TRANSCRIBING)
+        self.transition_to("transcribing")
 
     def handle_output(self, line: str) -> None:
         self._emit_output(line)
 
     def handle_exit(self, return_code: int) -> None:
         if return_code == 0:
-            self._set_state(OpenAIRealtimeState.IDLE)
+            self.transition_to("idle")
         else:
-            self._set_state(OpenAIRealtimeState.FAILED)
+            self.transition_to("failed")
         self._emit_exit(return_code)
         self._stop_requested = False
 
@@ -119,6 +120,35 @@ class OpenAIRealtimeController(STTController):
     def _emit_exit(self, return_code: int) -> None:
         for listener in self._exit_listeners:
             listener(return_code)
+
+    def transition_to(self, state: str) -> None:
+        """Transition to a named state using string identifier."""
+        state_lower = state.lower()
+        state_map = {
+            "idle": OpenAIRealtimeState.IDLE,
+            "starting": OpenAIRealtimeState.STARTING,
+            "connecting": OpenAIRealtimeState.CONNECTING,
+            "ready": OpenAIRealtimeState.READY,
+            "recording": OpenAIRealtimeState.RECORDING,
+            "transcribing": OpenAIRealtimeState.TRANSCRIBING,
+            "suspended": OpenAIRealtimeState.SUSPENDED,
+            "failed": OpenAIRealtimeState.FAILED,
+        }
+
+        if state_lower in state_map:
+            self._set_state(state_map[state_lower])
+        else:
+            logging.warning(f"Unknown state '{state}' for OpenAIRealtime controller")
+
+    def emit_transcription(self, text: str) -> None:
+        """Emit transcribed text to output listeners."""
+        self._emit_output(text)
+
+    def emit_error(self, message: str) -> None:
+        """Emit error message and transition to failed state."""
+        logging.error(f"OpenAIRealtime error: {message}")
+        self._emit_output(f"ERROR: {message}")
+        self.transition_to("failed")
 
 
 class OpenAIRealtimeProcessRunner(STTProcessRunner):
@@ -144,7 +174,19 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
     ) -> None:
         self._controller = controller
         self._api_key = api_key
-        self._model = model
+        session_model_map = {
+            "gpt-4o-transcribe": "gpt-4o-realtime-preview",
+            "gpt-4o-mini-transcribe": "gpt-4o-mini-realtime-preview",
+        }
+        if model in session_model_map:
+            self._model = model
+        else:
+            logging.warning(
+                "OpenAI transcription model '%s' is unsupported; defaulting to gpt-4o-transcribe",
+                model,
+            )
+            self._model = "gpt-4o-transcribe"
+        self._session_model = session_model_map.get(self._model, "gpt-4o-realtime-preview")
         self._language = language
         self._api_version = api_version
         self._sample_rate = sample_rate
@@ -154,7 +196,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         self._vad_threshold = vad_threshold
         self._vad_prefix_padding_ms = vad_prefix_padding_ms
         self._vad_silence_duration_ms = vad_silence_duration_ms
-        self._input_simulator = input_simulator or self._default_input_simulator
+        self._input_simulator = input_simulator or type_text
         self._ws_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._ws = None
@@ -183,6 +225,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
 
         if not self._api_key:
             logging.error("OpenAI API key is required")
+            self._controller.emit_error("OpenAI API key is required")
             self._controller.fail_to_start()
             return False
 
@@ -194,6 +237,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                 "websocket-client is not installed. "
                 "Install with: pip install websocket-client"
             )
+            self._controller.emit_error("websocket-client package is required")
             self._controller.fail_to_start()
             return False
 
@@ -244,9 +288,9 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
             import websocket
 
             # Build WebSocket URL
-            ws_url = f"wss://api.openai.com/v1/realtime?model={self._model}&api-version={self._api_version}"
+            ws_url = f"wss://api.openai.com/v1/realtime?model={self._session_model}&api-version={self._api_version}"
 
-            self._controller.set_connecting()
+            self._controller.transition_to("connecting")
 
             # Connect to WebSocket
             self._ws = websocket.WebSocketApp(
@@ -265,7 +309,8 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
             self._ws.run_forever()
 
         except Exception as exc:
-            logging.error(f"WebSocket loop error: {exc}")
+            logging.exception("WebSocket loop error")
+            self._controller.emit_error(f"WebSocket loop error: {exc}")
             self._controller.handle_exit(1)
 
     def _on_open(self, ws) -> None:
@@ -283,7 +328,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                 "create_response": False,  # Don't create AI responses, just transcribe
             }
 
-        transcription_model = "gpt-4o-transcribe"
+        transcription_model = self._model or "gpt-4o-transcribe"
 
         input_transcription: Dict[str, str] = {"model": transcription_model}
         if self._language:
@@ -308,7 +353,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
         # Send session configuration
         ws.send(json.dumps(session_config))
 
-        self._controller.set_ready()
+        self._controller.transition_to("ready")
 
         # Start audio recording thread
         audio_thread = threading.Thread(target=self._audio_loop, daemon=True)
@@ -324,7 +369,8 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                 # Audio transcription completed
                 transcript = data.get("transcript", "").strip()
                 if transcript:
-                    self._controller.handle_output(f"Transcribed: {transcript}")
+                    self._controller.transition_to("transcribing")
+                    self._controller.emit_transcription(transcript)
                     self._input_simulator(transcript)
 
             elif msg_type == "conversation.item.input_audio_transcription.delta":
@@ -349,7 +395,8 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                 if self._current_transcript and response_id == self._current_response_id:
                     final_text = "".join(self._current_transcript).strip()
                     if final_text:
-                        self._controller.handle_output(final_text)
+                        self._controller.transition_to("transcribing")
+                        self._controller.emit_transcription(final_text)
                         self._input_simulator(final_text)
                 self._response_active = False
                 self._current_response_id = None
@@ -363,18 +410,26 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
             elif msg_type == "error":
                 error = data.get("error", {})
                 logging.error(f"OpenAI Realtime error: {error}")
+                message = error.get("message") if isinstance(error, dict) else str(error)
+                if message:
+                    self._controller.emit_error(message)
 
         except Exception as exc:
-            logging.error(f"Error processing message: {exc}")
+            logging.exception("Error processing message")
+            self._controller.emit_error(f"Error processing message: {exc}")
 
     def _on_error(self, ws, error) -> None:
         """Handle WebSocket error."""
         logging.error(f"WebSocket error: {error}")
+        if error:
+            self._controller.emit_error(str(error))
 
     def _on_close(self, ws, close_status_code, close_msg) -> None:
         """Handle WebSocket connection closed."""
         logging.info(f"WebSocket closed: {close_status_code} - {close_msg}")
         if not self._stop_event.is_set():
+            reason = f"WebSocket closed unexpectedly: {close_status_code} - {close_msg}"
+            self._controller.emit_error(reason)
             self._controller.handle_exit(1)
 
     def _audio_loop(self) -> None:
@@ -386,7 +441,7 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                 channels=self._channels,
                 device=self._pulse_device,
             )
-            self._controller.set_recording()
+            self._controller.transition_to("recording")
             logging.info("Audio recording started successfully")
 
             while not self._stop_event.is_set():
@@ -430,26 +485,13 @@ class OpenAIRealtimeProcessRunner(STTProcessRunner):
                         logging.error("Failed to send audio chunk: %s", exc)
 
         except Exception as exc:
-            logging.error(f"Audio loop error: {exc}")
+            logging.exception("Audio loop error")
+            self._controller.emit_error(f"Audio loop error: {exc}")
             self._controller.handle_exit(1)
 
     def _extract_raw_audio(self, wav_data: bytes) -> bytes:
         """Extract raw PCM audio from WAV file (skip 44-byte header)."""
         return wav_data[44:]
-
-    @staticmethod
-    def _default_input_simulator(text: str) -> None:
-        """Default input simulator using dotool or xdotool."""
-        try:
-            # Try dotool first
-            run(["dotool", "type", text], check=True)
-        except (CalledProcessError, FileNotFoundError):
-            try:
-                # Fallback to xdotool
-                run(["xdotool", "type", "--", text], check=True)
-            except (CalledProcessError, FileNotFoundError):
-                logging.warning("Neither dotool nor xdotool available for input simulation")
-
 
 class AudioRecorder:
     """Records audio chunks from the microphone using PulseAudio's parec."""

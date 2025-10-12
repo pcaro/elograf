@@ -1,178 +1,70 @@
-# ABOUTME: Factory functions for creating STT engine controllers and runners.
-# ABOUTME: Allows selection between different speech-to-text engines (nerd-dictation, Whisper Docker, etc.).
+# ABOUTME: Factory helpers that leverage the plugin registry to build STT engines.
+# ABOUTME: Provides discovery utilities for available speech-to-text engine plugins.
 
 from __future__ import annotations
 
 import logging
-from typing import Optional, Tuple
+from typing import Iterable, Tuple, Type
 
+from eloGraf.engine_plugin import (
+    EnginePlugin,
+    get_plugin,
+    iter_plugins,
+    list_plugin_names,
+    normalize_engine_name,
+)
+from eloGraf.settings_schema import EngineSettings
 from eloGraf.stt_engine import STTController, STTProcessRunner
 
-
-def create_stt_engine(
-    engine_type: str = "nerd-dictation",
-    **kwargs
-) -> Tuple[STTController, STTProcessRunner]:
-    """
-    Create an STT controller and runner for the specified engine type.
-
-    Args:
-        engine_type: Type of STT engine ("nerd-dictation", "whisper-docker", "google-cloud-speech", or "openai-realtime")
-        **kwargs: Additional engine-specific configuration
-
-    Returns:
-        Tuple of (STTController, STTProcessRunner)
-
-    Raises:
-        ValueError: If engine_type is not supported
-    """
-    if engine_type == "nerd-dictation":
-        return _create_nerd_dictation_engine(**kwargs)
-    elif engine_type == "whisper-docker":
-        return _create_whisper_docker_engine(**kwargs)
-    elif engine_type == "google-cloud-speech":
-        return _create_google_cloud_speech_engine(**kwargs)
-    elif engine_type == "openai-realtime":
-        return _create_openai_realtime_engine(**kwargs)
-    elif engine_type == "assemblyai":
-        return _create_assemblyai_realtime_engine(**kwargs)
-    else:
-        raise ValueError(f"Unsupported STT engine type: {engine_type}")
+# Ensure built-in plugins are registered on import
+from eloGraf import plugins as _builtin_plugins  # noqa: F401
 
 
-def _create_nerd_dictation_engine(**kwargs) -> Tuple[STTController, STTProcessRunner]:
-    """Create nerd-dictation controller and runner."""
-    from eloGraf.nerd_controller import NerdDictationController, NerdDictationProcessRunner
+def _instantiate_settings(plugin: EnginePlugin, **kwargs) -> EngineSettings:
+    """Instantiate the plugin's settings dataclass using provided kwargs."""
+    schema: Type[EngineSettings] = plugin.get_settings_schema()
+    settings_obj = kwargs.pop("settings", None)
 
-    controller = NerdDictationController()
-    runner = NerdDictationProcessRunner(controller, **kwargs)
+    if settings_obj is not None:
+        if not isinstance(settings_obj, schema):  # pragma: no cover - defensive branch
+            raise TypeError(
+                f"Settings object for engine '{plugin.name}' must be of type {schema.__name__}"
+            )
+        return settings_obj
 
-    logging.info("Created nerd-dictation STT engine")
-    return controller, runner
-
-
-def _create_whisper_docker_engine(**kwargs) -> Tuple[STTController, STTProcessRunner]:
-    """Create Whisper Docker controller and runner."""
-    from eloGraf.whisper_docker_controller import WhisperDockerController, WhisperDockerProcessRunner
-
-    controller = WhisperDockerController()
-    runner = WhisperDockerProcessRunner(controller, **kwargs)
-
-    logging.info("Created Whisper Docker STT engine")
-    return controller, runner
+    schema_kwargs = dict(kwargs)
+    schema_kwargs.setdefault("engine_type", plugin.name)
+    return schema(**schema_kwargs)  # type: ignore[call-arg]
 
 
-def _create_google_cloud_speech_engine(**kwargs) -> Tuple[STTController, STTProcessRunner]:
-    """Create Google Cloud Speech controller and runner."""
-    from eloGraf.google_cloud_speech_controller import (
-        GoogleCloudSpeechController,
-        GoogleCloudSpeechProcessRunner
-    )
+def create_stt_engine(engine_type: str = "nerd-dictation", **kwargs) -> Tuple[STTController, STTProcessRunner]:
+    """Create controller and runner for the specified engine via its plugin."""
+    plugin = get_plugin(engine_type)
+    settings_obj = _instantiate_settings(plugin, **kwargs)
 
-    controller = GoogleCloudSpeechController()
-    runner = GoogleCloudSpeechProcessRunner(controller, **kwargs)
-
-    logging.info("Created Google Cloud Speech STT engine")
-    return controller, runner
-
-
-def _create_openai_realtime_engine(**kwargs) -> Tuple[STTController, STTProcessRunner]:
-    """Create OpenAI Realtime API controller and runner."""
-    from eloGraf.openai_realtime_controller import (
-        OpenAIRealtimeController,
-        OpenAIRealtimeProcessRunner
-    )
-
-    controller = OpenAIRealtimeController()
-    runner = OpenAIRealtimeProcessRunner(controller, **kwargs)
-
-    logging.info("Created OpenAI Realtime STT engine")
-    return controller, runner
-
-
-def _create_assemblyai_realtime_engine(**kwargs) -> Tuple[STTController, STTProcessRunner]:
-    """Create AssemblyAI Realtime controller and runner."""
-    from eloGraf.assemblyai_realtime_controller import (
-        AssemblyAIRealtimeController,
-        AssemblyAIRealtimeProcessRunner,
-    )
-
-    controller = AssemblyAIRealtimeController()
-    runner = AssemblyAIRealtimeProcessRunner(controller, **kwargs)
-
-    logging.info("Created AssemblyAI Realtime STT engine")
+    controller, runner = plugin.create_controller_runner(settings_obj)
+    logging.info("Created %s STT engine", plugin.name)
     return controller, runner
 
 
 def get_available_engines() -> list[str]:
-    """
-    Get list of available STT engines.
+    """Return the list of registered engine identifiers."""
+    return list(list_plugin_names())
 
-    Returns:
-        List of engine names
-    """
-    return ["nerd-dictation", "whisper-docker", "google-cloud-speech", "openai-realtime", "assemblyai"]
+
+def iter_available_plugins() -> Iterable[EnginePlugin]:
+    """Iterate over registered engine plugins."""
+    return iter_plugins()
 
 
 def is_engine_available(engine_type: str) -> bool:
-    """
-    Check if an STT engine is available on the system.
-
-    Args:
-        engine_type: Type of STT engine to check
-
-    Returns:
-        True if engine is available, False otherwise
-    """
-    if engine_type == "nerd-dictation":
-        return _check_nerd_dictation_available()
-    elif engine_type == "whisper-docker":
-        return _check_docker_available()
-    elif engine_type == "google-cloud-speech":
-        return _check_google_cloud_speech_available()
-    elif engine_type == "openai-realtime":
-        return _check_openai_realtime_available()
-    elif engine_type == "assemblyai":
-        return _check_assemblyai_available()
-    else:
-        return False
+    """Return True if the engine's availability check succeeds."""
+    plugin = get_plugin(engine_type)
+    available, _ = plugin.check_availability()
+    return available
 
 
-def _check_nerd_dictation_available() -> bool:
-    """Check if nerd-dictation is installed."""
-    import shutil
-    return shutil.which("nerd-dictation") is not None
-
-
-def _check_docker_available() -> bool:
-    """Check if Docker is available."""
-    import shutil
-    return shutil.which("docker") is not None
-
-
-def _check_google_cloud_speech_available() -> bool:
-    """Check if google-cloud-speech library is installed."""
-    try:
-        import google.cloud.speech_v2
-        return True
-    except ImportError:
-        return False
-
-
-def _check_openai_realtime_available() -> bool:
-    """Check if websocket-client library is installed."""
-    try:
-        import websocket
-        return True
-    except ImportError:
-        return False
-
-
-def _check_assemblyai_available() -> bool:
-    """Check if websocket-client and requests are installed."""
-    try:
-        import websocket  # noqa: F401
-        import requests  # noqa: F401
-        return True
-    except ImportError:
-        return False
+def describe_engine(engine_type: str) -> str:
+    """Return the display name for an engine."""
+    plugin = get_plugin(normalize_engine_name(engine_type))
+    return plugin.display_name

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from subprocess import Popen
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from PyQt6.QtCore import QCoreApplication, QTimer
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
@@ -11,9 +11,9 @@ from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from eloGraf.dialogs import AdvancedUI
 from eloGraf.dictation import CommandBuildError, build_dictation_command
+from eloGraf.engine_manager import EngineManager
 from eloGraf.ipc_manager import IPCManager
 from eloGraf.stt_engine import STTController, STTProcessRunner
-from eloGraf.stt_factory import create_stt_engine
 from eloGraf.nerd_controller import NerdDictationState
 from eloGraf.whisper_docker_controller import WhisperDockerState
 from eloGraf.google_cloud_speech_controller import GoogleCloudSpeechState
@@ -24,6 +24,16 @@ from eloGraf.state_machine import DictationStateMachine, IconState
 
 class SystemTrayIcon(QSystemTrayIcon):
     """Tray icon controller with model-aware tooltip."""
+
+    @property
+    def dictation_controller(self) -> Optional[STTController]:
+        """Get current dictation controller."""
+        return self._engine_manager.controller if hasattr(self, '_engine_manager') else None
+
+    @property
+    def dictation_runner(self) -> Optional[STTProcessRunner]:
+        """Get current dictation runner."""
+        return self._engine_manager.runner if hasattr(self, '_engine_manager') else None
 
     def _update_tooltip(self) -> None:
         tooltip_lines = ["EloGraf"]
@@ -119,15 +129,23 @@ class SystemTrayIcon(QSystemTrayIcon):
 
         self.setIcon(self.nomicro)
 
+        # Setup engine manager
+        self._engine_manager = EngineManager(
+            self.settings,
+            temporary_engine=temporary_engine,
+            max_retries=5,
+            retry_delay_ms=2000,
+        )
+        self._engine_manager.on_state_change = self._handle_dictation_state
+        self._engine_manager.on_output = self._handle_dictation_output
+        self._engine_manager.on_exit = self._handle_dictation_exit
+        self._engine_manager.on_refresh_complete = self._update_action_states
+
+        # Create initial engine
         self.dictation_timer = QTimer(self)
         self.dictation_timer.setInterval(200)
-        self._pending_engine_refresh = False
-        self._create_stt_engine()
-
-        self._engine_failure_count = 0
-        self._engine_retry_scheduled = False
-        self._max_engine_retries = 5
-        self._engine_retry_delay_ms = 2000
+        self._engine_manager.create_engine()
+        self.dictation_timer.timeout.connect(self._engine_manager.runner.poll)
 
         self.dictating = False
         self.suspended = False
@@ -205,108 +223,6 @@ class SystemTrayIcon(QSystemTrayIcon):
             self._suspended_icon = QIcon(pixmap)
         return self._suspended_icon
 
-    def _build_engine_kwargs(self, engine_type: str) -> Dict[str, Any]:
-        if engine_type == "whisper-docker":
-            return {
-                "model": self.settings.whisperModel,
-                "language": self.settings.whisperLanguage if self.settings.whisperLanguage else None,
-                "api_port": self.settings.whisperPort,
-                "chunk_duration": self.settings.whisperChunkDuration,
-                "sample_rate": self.settings.whisperSampleRate,
-                "channels": self.settings.whisperChannels,
-                "vad_enabled": self.settings.whisperVadEnabled,
-                "vad_threshold": self.settings.whisperVadThreshold,
-                "auto_reconnect": self.settings.whisperAutoReconnect,
-            }
-        if engine_type == "google-cloud-speech":
-            return {
-                "credentials_path": self.settings.googleCloudCredentialsPath if self.settings.googleCloudCredentialsPath else None,
-                "project_id": self.settings.googleCloudProjectId if self.settings.googleCloudProjectId else None,
-                "language_code": self.settings.googleCloudLanguageCode,
-                "model": self.settings.googleCloudModel,
-                "sample_rate": self.settings.googleCloudSampleRate,
-                "channels": self.settings.googleCloudChannels,
-                "vad_enabled": self.settings.googleCloudVadEnabled,
-                "vad_threshold": self.settings.googleCloudVadThreshold,
-            }
-        if engine_type == "openai-realtime":
-            model = self.settings.openaiModel or "gpt-4o-realtime-preview"
-            if model != "gpt-4o-realtime-preview":
-                logging.warning(
-                    "OpenAI Realtime requires gpt-4o-realtime-preview; overriding configured value '%s'",
-                    model,
-                )
-                model = "gpt-4o-realtime-preview"
-            return {
-                "api_key": self.settings.openaiApiKey,
-                "model": model,
-                "api_version": self.settings.openaiApiVersion,
-                "sample_rate": self.settings.openaiSampleRate,
-                "channels": self.settings.openaiChannels,
-                "vad_enabled": self.settings.openaiVadEnabled,
-                "vad_threshold": self.settings.openaiVadThreshold,
-                "vad_prefix_padding_ms": self.settings.openaiVadPrefixPaddingMs,
-                "vad_silence_duration_ms": self.settings.openaiVadSilenceDurationMs,
-                "language": self.settings.openaiLanguage,
-                "pulse_device": (self.settings.deviceName if self.settings.deviceName and self.settings.deviceName != "default" else None),
-            }
-        if engine_type == "assemblyai":
-            return {
-                "api_key": getattr(self.settings, "assemblyApiKey", ""),
-                "model": getattr(self.settings, "assemblyModel", "default"),
-                "language": getattr(self.settings, "assemblyLanguage", ""),
-                "sample_rate": getattr(self.settings, "assemblySampleRate", 16000),
-                "channels": getattr(self.settings, "assemblyChannels", 1),
-                "pulse_device": (self.settings.deviceName if self.settings.deviceName and self.settings.deviceName != "default" else None),
-            }
-        return {}
-
-    def _create_stt_engine(self) -> None:
-        # Use temporary engine if specified, otherwise use configured engine
-        engine_type = self.temporary_engine if self.temporary_engine else self.settings.sttEngine
-        engine_kwargs = self._build_engine_kwargs(engine_type)
-        logging.info(f"Created {engine_type} STT engine")
-        controller, runner = create_stt_engine(engine_type, **engine_kwargs)
-        controller.add_state_listener(self._handle_dictation_state)
-        controller.add_output_listener(self._handle_dictation_output)
-        controller.add_exit_listener(self._handle_dictation_exit)
-        self.dictation_controller = controller
-        self.dictation_runner = runner
-        self.dictation_timer.timeout.connect(self.dictation_runner.poll)
-
-    def _refresh_stt_engine(self) -> None:
-        self._engine_retry_scheduled = False
-        runner = getattr(self, "dictation_runner", None)
-        if runner and runner.is_running():
-            logging.info("STT engine running; stopping before applying new settings")
-            self.stop_dictate()
-            self._pending_engine_refresh = True
-            return
-
-        logging.info("Refreshing STT engine with updated settings")
-        was_active = self.dictation_timer.isActive()
-        self._pending_engine_refresh = False
-        self.dictation_timer.stop()
-        disconnected = False
-        if runner:
-            try:
-                self.dictation_timer.timeout.disconnect(runner.poll)
-                disconnected = True
-            except (TypeError, RuntimeError):
-                pass
-        try:
-            self._create_stt_engine()
-        except Exception:
-            if disconnected and runner:
-                try:
-                    self.dictation_timer.timeout.connect(runner.poll)
-                    if was_active:
-                        self.dictation_timer.start()
-                except (TypeError, RuntimeError):
-                    pass
-            raise
-        self._update_action_states()
-
     def _apply_state(self, icon_state: IconState, dictating: bool, suspended: bool) -> None:
         self.dictating = dictating
         self.suspended = suspended
@@ -335,6 +251,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self._update_action_states()
 
     def _handle_dictation_state(self, state) -> None:
+        """Handle state changes from STT engine."""
         # Handle both NerdDictationState and WhisperDockerState
         state_name = state.name if hasattr(state, 'name') else str(state)
 
@@ -342,8 +259,6 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.state_machine.set_loading()
         elif state_name in ('READY', 'DICTATING', 'RECORDING', 'TRANSCRIBING'):
             self.state_machine.set_ready()
-            self._engine_failure_count = 0
-            self._engine_retry_scheduled = False
         elif state_name == 'SUSPENDED':
             self.state_machine.set_suspended()
         elif state_name in ('STOPPING', 'IDLE'):
@@ -356,45 +271,22 @@ class SystemTrayIcon(QSystemTrayIcon):
         logging.info(f"STT engine: {line}")
 
     def _handle_dictation_exit(self, return_code: int) -> None:
-        failure = return_code != 0
-        if failure:
-            logging.warning(f"STT engine exited with code {return_code}")
+        """Handle engine exit."""
         if self.dictation_timer.isActive():
             self.dictation_timer.stop()
+
         self.dictating = False
         self.suspended = False
         self._update_action_states()
         self._update_tooltip()
         self._run_postcommand_once()
-        if failure:
-            self._pending_engine_refresh = False
-            runner = getattr(self, "dictation_runner", None)
-            if getattr(runner, "fatal_error", False):
-                logging.error("STT engine reported unrecoverable error; check configuration")
-                return
-            self._engine_failure_count += 1
-            if self._engine_failure_count >= self._max_engine_retries:
-                logging.error(
-                    "STT engine failed %d times; exiting application",
-                    self._engine_failure_count,
-                )
-                QTimer.singleShot(0, lambda: QCoreApplication.exit(1))
-                return
-            delay_ms = min(10000, self._engine_failure_count * self._engine_retry_delay_ms)
-            logging.info(
-                "Retrying STT engine in %.1f seconds (attempt %d/%d)",
-                delay_ms / 1000,
-                self._engine_failure_count,
-                self._max_engine_retries,
-            )
-            if not self._engine_retry_scheduled:
-                self._engine_retry_scheduled = True
-                QTimer.singleShot(delay_ms, self._refresh_stt_engine)
-        else:
-            self._engine_failure_count = 0
-            if getattr(self, "_pending_engine_refresh", False):
-                self._pending_engine_refresh = False
-                self._refresh_stt_engine()
+
+        # Delegate retry logic to engine manager
+        def on_fatal_error():
+            logging.error("STT engine failed too many times; exiting application")
+            QTimer.singleShot(0, lambda: QCoreApplication.exit(1))
+
+        self._engine_manager.handle_exit(return_code, on_fatal_error=on_fatal_error)
 
     def _run_postcommand_once(self) -> None:
         if self._postcommand_ran:
@@ -409,10 +301,13 @@ class SystemTrayIcon(QSystemTrayIcon):
         self._postcommand_ran = True
 
     def _update_action_states(self) -> None:
+        """Update menu action states based on current dictation state."""
         state = getattr(self, "state_machine", None)
         snapshot = state.state if state else None
-        if hasattr(self, "suspendAction") and snapshot:
-            self.suspendAction.setEnabled(self.dictation_runner.is_running() and not snapshot.suspended)
+        runner = self.dictation_runner
+
+        if hasattr(self, "suspendAction") and snapshot and runner:
+            self.suspendAction.setEnabled(runner.is_running() and not snapshot.suspended)
         if hasattr(self, "resumeAction") and snapshot:
             self.resumeAction.setEnabled(snapshot.suspended)
 
@@ -828,7 +723,11 @@ class SystemTrayIcon(QSystemTrayIcon):
                 if self.direct_click_enabled:
                     self.activated.connect(self.commute)
 
-            self._refresh_stt_engine()
+            # Refresh engine with new settings
+            self._engine_manager.refresh_engine(
+                stop_callback=self.stop_dictate,
+                poll_timer=self.dictation_timer
+            )
             self._update_tooltip()
 
     def config(self) -> None:
