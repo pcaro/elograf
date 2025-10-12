@@ -6,7 +6,7 @@ import shutil
 from typing import Tuple, TYPE_CHECKING
 
 from eloGraf.engine_plugin import EnginePlugin, register_plugin
-from eloGraf.settings_schema import EngineSettings
+from .settings import NerdSettings
 from eloGraf.stt_engine import STTController, STTProcessRunner
 from .controller import NerdDictationController, NerdDictationProcessRunner
 
@@ -26,19 +26,27 @@ class NerdDictationPlugin(EnginePlugin):
         return "Nerd Dictation"
 
     def get_settings_schema(self):  # type: ignore[override]
-        return EngineSettings
+        return NerdSettings
 
     def create_controller_runner(
-        self, settings: EngineSettings
+        self, settings: NerdSettings
     ) -> Tuple[STTController, STTProcessRunner]:  # type: ignore[override]
-        controller = NerdDictationController()
+        controller = NerdDictationController(settings)
         runner = NerdDictationProcessRunner(controller)
         return controller, runner
 
-    def apply_to_settings(self, app_settings: 'Settings', engine_settings: EngineSettings) -> None:
+    def apply_to_settings(self, app_settings: 'Settings', engine_settings: NerdSettings) -> None:
         app_settings.sttEngine = self.name
-        if hasattr(engine_settings, 'device_name'):
-            app_settings.deviceName = engine_settings.device_name
+        app_settings.deviceName = engine_settings.device_name
+        # Apply nerd-specific settings
+        app_settings.sampleRate = engine_settings.sample_rate
+        app_settings.timeout = engine_settings.timeout
+        app_settings.idleTime = engine_settings.idle_time
+        app_settings.punctuate = engine_settings.punctuate_timeout
+        app_settings.fullSentence = engine_settings.full_sentence
+        app_settings.digits = engine_settings.digits
+        app_settings.useSeparator = engine_settings.use_separator
+        # TODO: handle model_path and free_command
 
     def check_availability(self):  # type: ignore[override]
         if shutil.which("nerd-dictation"):

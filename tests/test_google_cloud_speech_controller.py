@@ -4,15 +4,20 @@ import pytest
 from eloGraf.engines.google.controller import (
     GoogleCloudSpeechController,
     GoogleCloudSpeechProcessRunner,
-    GoogleCloudSpeechState
+    GoogleCloudSpeechState,
 )
+from eloGraf.engines.google.settings import GoogleCloudSettings
 from eloGraf.stt_factory import create_stt_engine, get_available_engines
 from eloGraf.settings import Settings
 
 
+def make_controller(**settings_kwargs) -> GoogleCloudSpeechController:
+    return GoogleCloudSpeechController(GoogleCloudSettings(**settings_kwargs))
+
+
 def test_controller_state_transitions():
     """Test Google Cloud Speech controller state transitions."""
-    controller = GoogleCloudSpeechController()
+    controller = make_controller()
 
     assert controller.state == GoogleCloudSpeechState.IDLE
 
@@ -34,7 +39,7 @@ def test_controller_state_transitions():
 
 def test_controller_suspend_resume():
     """Test suspend/resume functionality."""
-    controller = GoogleCloudSpeechController()
+    controller = make_controller()
 
     assert not controller.is_suspended
 
@@ -49,7 +54,7 @@ def test_controller_suspend_resume():
 
 def test_controller_fail_to_start():
     """Test controller handles failure to start."""
-    controller = GoogleCloudSpeechController()
+    controller = make_controller()
 
     exit_codes = []
     controller.add_exit_listener(lambda code: exit_codes.append(code))
@@ -62,7 +67,7 @@ def test_controller_fail_to_start():
 
 def test_controller_output_listener():
     """Test output listener receives messages."""
-    controller = GoogleCloudSpeechController()
+    controller = make_controller()
 
     outputs = []
     controller.add_output_listener(lambda line: outputs.append(line))
@@ -75,7 +80,7 @@ def test_controller_output_listener():
 
 def test_controller_handle_exit():
     """Test controller handles exit codes."""
-    controller = GoogleCloudSpeechController()
+    controller = make_controller()
 
     # Successful exit
     controller.set_recording()
@@ -90,7 +95,7 @@ def test_controller_handle_exit():
 
 def test_runner_configuration():
     """Test runner accepts configuration parameters."""
-    controller = GoogleCloudSpeechController()
+    controller = make_controller()
     runner = GoogleCloudSpeechProcessRunner(
         controller,
         credentials_path="/path/to/creds.json",
@@ -115,7 +120,7 @@ def test_runner_configuration():
 
 def test_runner_is_not_running_initially():
     """Test runner is not running initially."""
-    controller = GoogleCloudSpeechController()
+    controller = make_controller()
     runner = GoogleCloudSpeechProcessRunner(controller)
 
     assert not runner.is_running()

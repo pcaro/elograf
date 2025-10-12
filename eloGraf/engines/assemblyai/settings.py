@@ -5,9 +5,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from eloGraf.base_settings import EngineSettings
+
 
 @dataclass
-class AssemblyAISettings:
+class AssemblyAISettings(EngineSettings):
     """Settings for AssemblyAI Realtime engine."""
 
     engine_type: str = field(
@@ -32,6 +34,7 @@ class AssemblyAISettings:
         metadata={
             "label": "API Key",
             "widget": "password",
+            "tooltip": "AssemblyAI API key or short-lived realtime token",
         }
     )
 
@@ -40,6 +43,7 @@ class AssemblyAISettings:
         metadata={
             "label": "Model",
             "widget": "text",
+            "tooltip": "Streaming model identifier (e.g. universal, default, meeting)",
         }
     )
 
@@ -48,6 +52,7 @@ class AssemblyAISettings:
         metadata={
             "label": "Language",
             "widget": "text",
+            "tooltip": "Optional BCP-47 language code; leave empty for auto-detect",
         }
     )
 
@@ -56,6 +61,7 @@ class AssemblyAISettings:
         metadata={
             "label": "Sample Rate",
             "widget": "text",
+            "tooltip": "Sample rate in Hz used for PCM frames sent to AssemblyAI",
         }
     )
 
@@ -64,6 +70,7 @@ class AssemblyAISettings:
         metadata={
             "label": "Channels",
             "widget": "text",
+            "tooltip": "Number of audio channels captured (mono recommended)",
         }
     )
 

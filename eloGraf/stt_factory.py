@@ -13,7 +13,7 @@ from eloGraf.engine_plugin import (
     list_plugin_names,
     normalize_engine_name,
 )
-from eloGraf.settings_schema import EngineSettings
+from eloGraf.base_settings import EngineSettings
 from eloGraf.stt_engine import STTController, STTProcessRunner
 
 # Ensure built-in engines are registered on import

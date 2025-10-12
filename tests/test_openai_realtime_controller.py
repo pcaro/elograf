@@ -4,15 +4,21 @@ import pytest
 from eloGraf.engines.openai.controller import (
     OpenAIRealtimeController,
     OpenAIRealtimeProcessRunner,
-    OpenAIRealtimeState
+    OpenAIRealtimeState,
 )
+from eloGraf.engines.openai.settings import OpenAISettings
 from eloGraf.stt_factory import create_stt_engine, get_available_engines
 from eloGraf.settings import Settings
 
 
+def make_controller(**settings_kwargs) -> OpenAIRealtimeController:
+    """Helper to build controller with optional settings overrides."""
+    return OpenAIRealtimeController(OpenAISettings(**settings_kwargs))
+
+
 def test_controller_state_transitions():
     """Test OpenAI Realtime controller state transitions."""
-    controller = OpenAIRealtimeController()
+    controller = make_controller()
 
     assert controller.state == OpenAIRealtimeState.IDLE
 
@@ -37,7 +43,7 @@ def test_controller_state_transitions():
 
 def test_controller_suspend_resume():
     """Test suspend/resume functionality."""
-    controller = OpenAIRealtimeController()
+    controller = make_controller()
 
     assert not controller.is_suspended
 
@@ -52,7 +58,7 @@ def test_controller_suspend_resume():
 
 def test_controller_fail_to_start():
     """Test controller handles failure to start."""
-    controller = OpenAIRealtimeController()
+    controller = make_controller()
 
     exit_codes = []
     controller.add_exit_listener(lambda code: exit_codes.append(code))
@@ -65,7 +71,7 @@ def test_controller_fail_to_start():
 
 def test_controller_output_listener():
     """Test output listener receives messages."""
-    controller = OpenAIRealtimeController()
+    controller = make_controller()
 
     outputs = []
     controller.add_output_listener(lambda line: outputs.append(line))
@@ -78,7 +84,7 @@ def test_controller_output_listener():
 
 def test_controller_handle_exit():
     """Test controller handles exit codes."""
-    controller = OpenAIRealtimeController()
+    controller = make_controller()
 
     # Successful exit
     controller.set_recording()
@@ -93,7 +99,7 @@ def test_controller_handle_exit():
 
 def test_runner_configuration():
     """Test runner accepts configuration parameters."""
-    controller = OpenAIRealtimeController()
+    controller = make_controller()
     runner = OpenAIRealtimeProcessRunner(
         controller,
         api_key="sk-test-key",
@@ -122,7 +128,7 @@ def test_runner_configuration():
 
 def test_runner_is_not_running_initially():
     """Test runner is not running initially."""
-    controller = OpenAIRealtimeController()
+    controller = make_controller()
     runner = OpenAIRealtimeProcessRunner(controller, api_key="sk-test")
 
     assert not runner.is_running()

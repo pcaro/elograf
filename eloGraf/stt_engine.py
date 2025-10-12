@@ -109,6 +109,19 @@ class STTController(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_status_string(self) -> str:
+        """
+        Returns a concise, one-line string representing the current
+        status and configuration of the engine.
+
+        This string is designed for display in UI tooltips or status bars.
+
+        Returns:
+            A formatted status string.
+        """
+        pass
+
 
 class STTProcessRunner(ABC):
     """Abstract process runner that manages the STT engine lifecycle."""

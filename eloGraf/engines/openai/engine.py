@@ -6,7 +6,7 @@ from dataclasses import asdict
 from typing import Dict, Tuple, TYPE_CHECKING
 
 from eloGraf.engine_plugin import EnginePlugin, register_plugin
-from eloGraf.settings_schema import OpenAISettings
+from .settings import OpenAISettings
 from eloGraf.stt_engine import STTController, STTProcessRunner
 from .controller import (
     OpenAIRealtimeController,
@@ -41,7 +41,7 @@ class OpenAIRealtimePlugin(EnginePlugin):
         if isinstance(device_name, str) and device_name and device_name != "default":
             pulse_device = device_name
         params["pulse_device"] = pulse_device
-        controller = OpenAIRealtimeController()
+        controller = OpenAIRealtimeController(settings)
         runner = OpenAIRealtimeProcessRunner(controller, **params)
         return controller, runner
 

@@ -5,10 +5,15 @@ from eloGraf.engines.whisper.controller import (
     WhisperDockerProcessRunner,
     WhisperDockerState,
 )
+from eloGraf.engines.whisper.settings import WhisperSettings
+
+
+def make_controller(**settings_kwargs) -> WhisperDockerController:
+    return WhisperDockerController(WhisperSettings(**settings_kwargs))
 
 
 def test_controller_state_transitions():
-    controller = WhisperDockerController()
+    controller = make_controller()
     states = []
 
     def capture_state(state):
@@ -36,7 +41,7 @@ def test_controller_state_transitions():
 
 
 def test_controller_fail_to_start():
-    controller = WhisperDockerController()
+    controller = make_controller()
     exit_codes = []
 
     controller.add_exit_listener(lambda code: exit_codes.append(code))
@@ -47,7 +52,7 @@ def test_controller_fail_to_start():
 
 
 def test_controller_output_listener():
-    controller = WhisperDockerController()
+    controller = make_controller()
     outputs = []
 
     controller.add_output_listener(lambda line: outputs.append(line))
@@ -57,7 +62,7 @@ def test_controller_output_listener():
 
 
 def test_controller_handle_exit():
-    controller = WhisperDockerController()
+    controller = make_controller()
     exit_codes = []
 
     controller.add_exit_listener(lambda code: exit_codes.append(code))
@@ -74,7 +79,7 @@ def test_controller_handle_exit():
 @patch('eloGraf.engines.whisper.controller.run')
 @patch('eloGraf.engines.whisper.controller.requests')
 def test_runner_start_container_not_running(mock_requests, mock_run):
-    controller = WhisperDockerController()
+    controller = make_controller()
     runner = WhisperDockerProcessRunner(controller, container_name="test-whisper")
 
     # Mock Docker ps showing container doesn't exist
@@ -92,7 +97,7 @@ def test_runner_start_container_not_running(mock_requests, mock_run):
 
 @patch('eloGraf.engines.whisper.controller.run')
 def test_runner_is_container_running(mock_run):
-    controller = WhisperDockerController()
+    controller = make_controller()
     runner = WhisperDockerProcessRunner(controller, container_name="test-whisper")
 
     # Mock container is running
@@ -107,7 +112,7 @@ def test_runner_is_container_running(mock_run):
 
 
 def test_runner_stop():
-    controller = WhisperDockerController()
+    controller = make_controller()
     runner = WhisperDockerProcessRunner(controller)
 
     mock_thread = Mock()

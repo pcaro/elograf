@@ -6,7 +6,7 @@ from dataclasses import asdict
 from typing import Dict, Tuple, TYPE_CHECKING
 
 from eloGraf.engine_plugin import EnginePlugin, register_plugin
-from eloGraf.settings_schema import AssemblyAISettings
+from .settings import AssemblyAISettings
 from eloGraf.stt_engine import STTController, STTProcessRunner
 
 if TYPE_CHECKING:  # pragma: no cover - import for type hints only
@@ -46,7 +46,7 @@ class AssemblyAIRealtimePlugin(EnginePlugin):
             AssemblyAIRealtimeProcessRunner,
         )
 
-        controller = AssemblyAIRealtimeController()
+        controller = AssemblyAIRealtimeController(settings)
         runner = AssemblyAIRealtimeProcessRunner(controller, **params)
         return controller, runner
 

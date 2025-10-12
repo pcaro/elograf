@@ -84,6 +84,9 @@ class FakeController(STTController):
             callback(message)
         self.transition_to("failed")
 
+    def get_status_string(self) -> str:
+        return "Fake Controller | Demo"
+
 
 class FakeRunner(STTProcessRunner):
     def __init__(self, controller: FakeController) -> None:

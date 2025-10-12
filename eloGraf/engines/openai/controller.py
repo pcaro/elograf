@@ -18,6 +18,7 @@ from typing import Callable, Dict, List, Optional
 from eloGraf.base_controller import StreamingControllerBase
 from eloGraf.input_simulator import type_text
 from eloGraf.streaming_runner_base import StreamingRunnerBase
+from .settings import OpenAISettings
 
 
 class OpenAIRealtimeState(Enum):
@@ -51,12 +52,13 @@ STATE_MAP = {
 class OpenAIRealtimeController(StreamingControllerBase[OpenAIRealtimeState]):
     """Controller for OpenAI Realtime API that interprets states."""
 
-    def __init__(self) -> None:
+    def __init__(self, settings: OpenAISettings) -> None:
         super().__init__(
             initial_state=OpenAIRealtimeState.IDLE,
             state_map=STATE_MAP,
             engine_name="OpenAIRealtime",
         )
+        self._settings = settings
         self._stop_requested = False
 
     def start(self) -> None:
@@ -92,6 +94,11 @@ class OpenAIRealtimeController(StreamingControllerBase[OpenAIRealtimeState]):
             self.transition_to("failed")
         self._emit_exit(return_code)
         self._stop_requested = False
+
+    def get_status_string(self) -> str:
+        model_name = self._settings.model
+        language = self._settings.language
+        return f"OpenAI Realtime | Model: {model_name} | Lang: {language}"
 
 
 class OpenAIRealtimeProcessRunner(StreamingRunnerBase):

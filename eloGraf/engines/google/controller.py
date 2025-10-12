@@ -16,6 +16,7 @@ from typing import Callable, Dict, List, Optional
 from eloGraf.base_controller import StreamingControllerBase
 from eloGraf.input_simulator import type_text
 from eloGraf.streaming_runner_base import StreamingRunnerBase
+from .settings import GoogleCloudSettings
 
 
 class GoogleCloudSpeechState(Enum):
@@ -49,12 +50,13 @@ STATE_MAP = {
 class GoogleCloudSpeechController(StreamingControllerBase[GoogleCloudSpeechState]):
     """Controller for Google Cloud Speech API that interprets states."""
 
-    def __init__(self) -> None:
+    def __init__(self, settings: GoogleCloudSettings) -> None:
         super().__init__(
             initial_state=GoogleCloudSpeechState.IDLE,
             state_map=STATE_MAP,
             engine_name="GoogleCloudSpeech",
         )
+        self._settings = settings
         self._stop_requested = False
 
     def start(self) -> None:
@@ -87,6 +89,11 @@ class GoogleCloudSpeechController(StreamingControllerBase[GoogleCloudSpeechState
             self.transition_to("failed")
         self._emit_exit(return_code)
         self._stop_requested = False
+
+    def get_status_string(self) -> str:
+        model_name = self._settings.model
+        language = self._settings.language_code
+        return f"Google Cloud | Model: {model_name} | Lang: {language}"
 
 
 class GoogleCloudSpeechProcessRunner(StreamingRunnerBase):

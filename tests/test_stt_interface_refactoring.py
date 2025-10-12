@@ -6,31 +6,68 @@ from __future__ import annotations
 import pytest
 
 from eloGraf.engines.nerd.controller import NerdDictationController
+from eloGraf.engines.nerd.settings import NerdSettings
 from eloGraf.engines.whisper.controller import WhisperDockerController
+from eloGraf.engines.whisper.settings import WhisperSettings
 
 # Conditional imports for engines with optional dependencies
 try:
     from eloGraf.engines.google.controller import GoogleCloudSpeechController
+    from eloGraf.engines.google.settings import GoogleCloudSettings
     HAS_GOOGLE_CLOUD = True
 except ImportError:
     HAS_GOOGLE_CLOUD = False
 
 try:
     from eloGraf.engines.openai.controller import OpenAIRealtimeController
+    from eloGraf.engines.openai.settings import OpenAISettings
     HAS_OPENAI = True
 except ImportError:
     HAS_OPENAI = False
 
 try:
     from eloGraf.engines.assemblyai.controller import AssemblyAIRealtimeController
+    from eloGraf.engines.assemblyai.settings import AssemblyAISettings
     HAS_ASSEMBLYAI = True
 except ImportError:
     HAS_ASSEMBLYAI = False
 
 
+def make_nerd_controller(**kwargs) -> NerdDictationController:
+    return NerdDictationController(NerdSettings(**kwargs))
+
+
+def make_whisper_controller(**kwargs) -> WhisperDockerController:
+    return WhisperDockerController(WhisperSettings(**kwargs))
+
+
+if HAS_GOOGLE_CLOUD:
+    def make_google_controller(**kwargs):
+        return GoogleCloudSpeechController(GoogleCloudSettings(**kwargs))
+else:
+    def make_google_controller(**kwargs):  # pragma: no cover - guarded by skipif
+        raise RuntimeError("Google Cloud controller unavailable")
+
+
+if HAS_OPENAI:
+    def make_openai_controller(**kwargs):
+        return OpenAIRealtimeController(OpenAISettings(**kwargs))
+else:
+    def make_openai_controller(**kwargs):  # pragma: no cover - guarded by skipif
+        raise RuntimeError("OpenAI controller unavailable")
+
+
+if HAS_ASSEMBLYAI:
+    def make_assembly_controller(**kwargs):
+        return AssemblyAIRealtimeController(AssemblyAISettings(**kwargs))
+else:
+    def make_assembly_controller(**kwargs):  # pragma: no cover - guarded by skipif
+        raise RuntimeError("AssemblyAI controller unavailable")
+
+
 def test_nerd_controller_transition_to():
     """Test NerdDictationController.transition_to() method."""
-    controller = NerdDictationController()
+    controller = make_nerd_controller()
 
     states_seen = []
     controller.add_state_listener(lambda state: states_seen.append(state))
@@ -45,7 +82,7 @@ def test_nerd_controller_transition_to():
 
 def test_nerd_controller_emit_transcription():
     """Test NerdDictationController.emit_transcription() method."""
-    controller = NerdDictationController()
+    controller = make_nerd_controller()
 
     outputs = []
     controller.add_output_listener(lambda text: outputs.append(text))
@@ -57,7 +94,7 @@ def test_nerd_controller_emit_transcription():
 
 def test_nerd_controller_emit_error():
     """Test NerdDictationController.emit_error() method."""
-    controller = NerdDictationController()
+    controller = make_nerd_controller()
 
     outputs = []
     controller.add_output_listener(lambda text: outputs.append(text))
@@ -69,7 +106,7 @@ def test_nerd_controller_emit_error():
 
 def test_whisper_controller_transition_to():
     """Test WhisperDockerController.transition_to() method."""
-    controller = WhisperDockerController()
+    controller = make_whisper_controller()
 
     states_seen = []
     controller.add_state_listener(lambda state: states_seen.append(state))
@@ -84,7 +121,7 @@ def test_whisper_controller_transition_to():
 @pytest.mark.skipif(not HAS_GOOGLE_CLOUD, reason="google-cloud-speech not available")
 def test_google_cloud_controller_transition_to():
     """Test GoogleCloudSpeechController.transition_to() method."""
-    controller = GoogleCloudSpeechController()
+    controller = make_google_controller()
 
     states_seen = []
     controller.add_state_listener(lambda state: states_seen.append(state))
@@ -99,7 +136,7 @@ def test_google_cloud_controller_transition_to():
 @pytest.mark.skipif(not HAS_OPENAI, reason="openai not available")
 def test_openai_controller_transition_to():
     """Test OpenAIRealtimeController.transition_to() method."""
-    controller = OpenAIRealtimeController()
+    controller = make_openai_controller()
 
     states_seen = []
     controller.add_state_listener(lambda state: states_seen.append(state))
@@ -114,7 +151,7 @@ def test_openai_controller_transition_to():
 @pytest.mark.skipif(not HAS_ASSEMBLYAI, reason="websocket-client not available")
 def test_assemblyai_controller_transition_to():
     """Test AssemblyAIRealtimeController.transition_to() method."""
-    controller = AssemblyAIRealtimeController()
+    controller = make_assembly_controller()
 
     states_seen = []
     controller.add_state_listener(lambda state: states_seen.append(state))
@@ -130,7 +167,7 @@ def test_assemblyai_controller_transition_to():
 @pytest.mark.skipif(not HAS_ASSEMBLYAI, reason="websocket-client not available")
 def test_assemblyai_controller_emit_transcription():
     """Test AssemblyAIRealtimeController.emit_transcription() method."""
-    controller = AssemblyAIRealtimeController()
+    controller = make_assembly_controller()
 
     outputs = []
     controller.add_output_listener(lambda text: outputs.append(text))
@@ -143,16 +180,16 @@ def test_assemblyai_controller_emit_transcription():
 def test_all_controllers_have_unified_interface():
     """Test that all controllers implement the unified interface."""
     controllers = [
-        NerdDictationController(),
-        WhisperDockerController(),
+        make_nerd_controller(),
+        make_whisper_controller(),
     ]
 
     if HAS_GOOGLE_CLOUD:
-        controllers.append(GoogleCloudSpeechController())
+        controllers.append(make_google_controller())
     if HAS_OPENAI:
-        controllers.append(OpenAIRealtimeController())
+        controllers.append(make_openai_controller())
     if HAS_ASSEMBLYAI:
-        controllers.append(AssemblyAIRealtimeController())
+        controllers.append(make_assembly_controller())
 
     for controller in controllers:
         assert hasattr(controller, "transition_to")

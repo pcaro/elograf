@@ -138,12 +138,15 @@ def test_tooltip_updates_with_model(tray, monkeypatch):
     # Set engine to nerd-dictation for this test
     tray_icon.settings.sttEngine = "nerd-dictation"
     tray_icon.temporary_engine = None
-    monkeypatch.setattr(tray_icon, "currentModel", lambda: ("model-a", "/tmp/a"))
+    controller = tray_icon.dictation_controller
+    if hasattr(controller, "_settings"):
+        controller._settings.model_path = "/tmp/a"  # type: ignore[attr-defined]
     tray_icon._update_tooltip()
     tooltip_lines = tray_icon.toolTip().split("\n")
     assert tooltip_lines[0] == "EloGraf"
-    assert "Engine: nerd-dictation" in tooltip_lines
-    assert "Model: model-a" in tooltip_lines
+    assert tooltip_lines[1].startswith("Nerd-Dictation")
+    assert "Model:" in tooltip_lines[1]
+    assert "/tmp/a" in tooltip_lines[1]
 
 
 def test_toggle_cycles_states(tray, monkeypatch):

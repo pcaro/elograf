@@ -16,7 +16,8 @@ class DummySettings:
         self.sttEngine = "dummy"
 
     def get_engine_settings(self, engine_type: str):
-        return {}
+        from eloGraf.base_settings import EngineSettings
+        return EngineSettings(engine_type=engine_type, device_name="default")
 
 
 class DummyController(STTController):
@@ -68,6 +69,9 @@ class DummyController(STTController):
 
     def emit_error(self, message: str) -> None:
         pass
+
+    def get_status_string(self) -> str:
+        return "Dummy Controller"
 
 
 class HangingRunner(STTProcessRunner):

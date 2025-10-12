@@ -5,9 +5,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from eloGraf.base_settings import EngineSettings
+
 
 @dataclass
-class OpenAISettings:
+class OpenAISettings(EngineSettings):
     """Settings for OpenAI Realtime API engine."""
 
     engine_type: str = field(
@@ -32,15 +34,20 @@ class OpenAISettings:
         metadata={
             "label": "API Key",
             "widget": "password",
+            "tooltip": "OpenAI API key with realtime access enabled",
         }
     )
 
     model: str = field(
         default="gpt-4o-transcribe",
         metadata={
-            "label": "Model",
+            "label": "Transcription Model",
             "widget": "dropdown",
-            "options": ["gpt-4o-realtime-preview", "gpt-4o-mini-realtime-preview"],
+            "tooltip": (
+                "Select the transcription model used inside the realtime session "
+                "(mapped to the appropriate session model automatically)."
+            ),
+            "options": ["gpt-4o-transcribe", "gpt-4o-mini-transcribe"],
         }
     )
 
@@ -49,6 +56,7 @@ class OpenAISettings:
         metadata={
             "label": "API Version",
             "widget": "text",
+            "tooltip": "Realtime API version string appended to the WebSocket URL",
         }
     )
 
@@ -57,6 +65,7 @@ class OpenAISettings:
         metadata={
             "label": "Sample Rate",
             "widget": "text",
+            "tooltip": "PCM sample rate used when capturing audio for the websocket stream",
         }
     )
 
@@ -65,6 +74,7 @@ class OpenAISettings:
         metadata={
             "label": "Channels",
             "widget": "text",
+            "tooltip": "Number of audio channels streamed to OpenAI (mono required)",
         }
     )
 
@@ -73,6 +83,7 @@ class OpenAISettings:
         metadata={
             "label": "VAD Enabled",
             "widget": "checkbox",
+            "tooltip": "Enable server-side voice activity detection to segment speech automatically",
         }
     )
 
@@ -81,6 +92,7 @@ class OpenAISettings:
         metadata={
             "label": "VAD Threshold",
             "widget": "text",
+            "tooltip": "Energy threshold between 0.0 and 1.0 for server VAD speech detection",
         }
     )
 
@@ -89,6 +101,7 @@ class OpenAISettings:
         metadata={
             "label": "VAD Prefix Padding (ms)",
             "widget": "text",
+            "tooltip": "Milliseconds of audio retained before speech start when VAD triggers",
         }
     )
 
@@ -97,6 +110,7 @@ class OpenAISettings:
         metadata={
             "label": "VAD Silence Duration (ms)",
             "widget": "text",
+            "tooltip": "Silence duration in milliseconds required to finalize a segment",
         }
     )
 
@@ -105,6 +119,7 @@ class OpenAISettings:
         metadata={
             "label": "Language",
             "widget": "text",
+            "tooltip": "BCP-47 language code (leave empty to let the model auto-detect)",
         }
     )
 

@@ -8,6 +8,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from eloGraf.base_controller import EnumStateController
 from eloGraf.stt_engine import STTProcessRunner
+from .settings import NerdSettings
 
 
 class NerdDictationState(Enum):
@@ -41,12 +42,13 @@ STATE_MAP = {
 class NerdDictationController(EnumStateController[NerdDictationState]):
     """Pure controller that interprets nerd-dictation output into states."""
 
-    def __init__(self) -> None:
+    def __init__(self, settings: NerdSettings) -> None:
         super().__init__(
             initial_state=NerdDictationState.IDLE,
             state_map=STATE_MAP,
             engine_name="NerdDictation",
         )
+        self._settings = settings
         self._stop_requested = False
 
     def start(self) -> None:
@@ -94,6 +96,10 @@ class NerdDictationController(EnumStateController[NerdDictationState]):
             self._set_state(NerdDictationState.FAILED)
         self._emit_exit(return_code)
         self._stop_requested = False
+
+    def get_status_string(self) -> str:
+        model_name = self._settings.model_path
+        return f"Nerd-Dictation | Model: {model_name or 'Not Selected'}"
 
 
 class NerdDictationProcessRunner(STTProcessRunner):

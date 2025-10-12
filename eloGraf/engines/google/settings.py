@@ -5,9 +5,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from eloGraf.base_settings import EngineSettings
+
 
 @dataclass
-class GoogleCloudSettings:
+class GoogleCloudSettings(EngineSettings):
     """Settings for Google Cloud Speech-to-Text engine."""
 
     engine_type: str = field(
@@ -32,6 +34,7 @@ class GoogleCloudSettings:
         metadata={
             "label": "Credentials Path",
             "widget": "text",
+            "tooltip": "Filesystem path to the Google Cloud service account JSON file",
         }
     )
 
@@ -40,6 +43,7 @@ class GoogleCloudSettings:
         metadata={
             "label": "Project ID",
             "widget": "text",
+            "tooltip": "GCP project identifier; leave empty to auto-detect from credentials",
         }
     )
 
@@ -48,6 +52,7 @@ class GoogleCloudSettings:
         metadata={
             "label": "Language Code",
             "widget": "text",
+            "tooltip": "Primary BCP-47 language code (e.g. en-US, es-ES)",
         }
     )
 
@@ -56,6 +61,7 @@ class GoogleCloudSettings:
         metadata={
             "label": "Model",
             "widget": "text",
+            "tooltip": "Google Cloud Speech model name (chirp_3, latest_long, latest_short, ...)",
         }
     )
 
@@ -64,6 +70,7 @@ class GoogleCloudSettings:
         metadata={
             "label": "Sample Rate",
             "widget": "text",
+            "tooltip": "Sample rate in Hz for audio sent to the gRPC stream",
         }
     )
 
@@ -72,6 +79,7 @@ class GoogleCloudSettings:
         metadata={
             "label": "Channels",
             "widget": "text",
+            "tooltip": "Number of audio channels (must match recorder configuration)",
         }
     )
 
@@ -80,6 +88,7 @@ class GoogleCloudSettings:
         metadata={
             "label": "VAD Enabled",
             "widget": "checkbox",
+            "tooltip": "Enable voice activity detection when streaming audio",
         }
     )
 
@@ -88,6 +97,7 @@ class GoogleCloudSettings:
         metadata={
             "label": "VAD Threshold",
             "widget": "text",
+            "tooltip": "RMS loudness threshold used when VAD is enabled",
         }
     )
 

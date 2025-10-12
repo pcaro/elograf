@@ -7,7 +7,7 @@ import shutil
 from typing import Dict, Tuple, TYPE_CHECKING
 
 from eloGraf.engine_plugin import EnginePlugin, register_plugin
-from eloGraf.settings_schema import WhisperSettings
+from .settings import WhisperSettings
 from eloGraf.stt_engine import STTController, STTProcessRunner
 from .controller import (
     WhisperDockerController,
@@ -41,7 +41,7 @@ class WhisperDockerPlugin(EnginePlugin):
         api_port = params.pop("port", None)
         if api_port is not None:
             params["api_port"] = api_port
-        controller = WhisperDockerController()
+        controller = WhisperDockerController(settings)
         runner = WhisperDockerProcessRunner(controller, **params)
         return controller, runner
 

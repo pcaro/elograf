@@ -54,6 +54,9 @@ class SampleStreamingController(StreamingControllerBase[SampleState]):
             self.transition_to("failed")
         self._emit_exit(return_code)
 
+    def get_status_string(self) -> str:
+        return "SampleEngine | Test"
+
 
 class TestStreamingControllerBase(unittest.TestCase):
     """Test suite for StreamingControllerBase."""

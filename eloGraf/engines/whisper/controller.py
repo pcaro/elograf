@@ -18,6 +18,7 @@ import requests
 from eloGraf.base_controller import StreamingControllerBase
 from eloGraf.input_simulator import type_text
 from eloGraf.streaming_runner_base import StreamingRunnerBase
+from .settings import WhisperSettings
 
 
 class WhisperDockerState(Enum):
@@ -49,12 +50,13 @@ STATE_MAP = {
 class WhisperDockerController(StreamingControllerBase[WhisperDockerState]):
     """Controller for Whisper Docker container that interprets states."""
 
-    def __init__(self) -> None:
+    def __init__(self, settings: WhisperSettings) -> None:
         super().__init__(
             initial_state=WhisperDockerState.IDLE,
             state_map=STATE_MAP,
             engine_name="WhisperDocker",
         )
+        self._settings = settings
         self._stop_requested = False
 
     def start(self) -> None:
@@ -87,6 +89,11 @@ class WhisperDockerController(StreamingControllerBase[WhisperDockerState]):
             self._set_state(WhisperDockerState.FAILED)
         self._emit_exit(return_code)
         self._stop_requested = False
+
+    def get_status_string(self) -> str:
+        model_name = self._settings.model
+        language = self._settings.language or "Auto-detect"
+        return f"Whisper Docker | Model: {model_name} | Lang: {language}"
 
 
 class WhisperDockerProcessRunner(StreamingRunnerBase):

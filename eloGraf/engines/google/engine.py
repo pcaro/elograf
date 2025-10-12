@@ -6,7 +6,7 @@ from dataclasses import asdict
 from typing import Dict, Tuple, TYPE_CHECKING
 
 from eloGraf.engine_plugin import EnginePlugin, register_plugin, register_plugin_alias
-from eloGraf.settings_schema import GoogleCloudSettings
+from .settings import GoogleCloudSettings
 from eloGraf.stt_engine import STTController, STTProcessRunner
 from .controller import (
     GoogleCloudSpeechController,
@@ -37,7 +37,7 @@ class GoogleCloudSpeechPlugin(EnginePlugin):
         params: Dict[str, object] = asdict(settings)
         params.pop("engine_type", None)
         params.pop("device_name", None)
-        controller = GoogleCloudSpeechController()
+        controller = GoogleCloudSpeechController(settings)
         runner = GoogleCloudSpeechProcessRunner(controller, **params)
         return controller, runner
 

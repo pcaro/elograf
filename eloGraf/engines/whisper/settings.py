@@ -6,9 +6,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
+from eloGraf.base_settings import EngineSettings
+
 
 @dataclass
-class WhisperSettings:
+class WhisperSettings(EngineSettings):
     """Settings for Whisper Docker engine."""
 
     engine_type: str = field(
@@ -70,6 +72,7 @@ class WhisperSettings:
         metadata={
             "label": "Sample Rate",
             "widget": "text",
+            "tooltip": "PCM sample rate forwarded to the Whisper REST service",
         }
     )
 
@@ -78,6 +81,7 @@ class WhisperSettings:
         metadata={
             "label": "Channels",
             "widget": "text",
+            "tooltip": "Number of channels to record (Whisper Docker expects mono)",
         }
     )
 
@@ -86,6 +90,7 @@ class WhisperSettings:
         metadata={
             "label": "VAD Enabled",
             "widget": "checkbox",
+            "tooltip": "Skip silent chunks by enabling voice activity detection",
         }
     )
 
@@ -94,6 +99,7 @@ class WhisperSettings:
         metadata={
             "label": "VAD Threshold",
             "widget": "text",
+            "tooltip": "RMS loudness threshold; higher values filter more background noise",
         }
     )
 
@@ -102,6 +108,7 @@ class WhisperSettings:
         metadata={
             "label": "Auto Reconnect",
             "widget": "checkbox",
+            "tooltip": "Automatically restart the container when the REST API stops responding",
         }
     )
 

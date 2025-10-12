@@ -9,28 +9,30 @@ EloGraf is a desktop utility written in Python that facilitates voice dictation 
 - IPC integration (D-Bus/local sockets) to coordinate with other system components
 
 ## Technical Structure
-The code is organized as a Python package with Qt interface (PyQt6), specific controllers for each voice engine, a `SystemTrayIcon` that coordinates the dictation flow, and a battery of unit/functional tests in `tests/`. Distribution is managed with `pyproject.toml` and `setup.cfg`.
 
-### Abstract STT Interface
+The code is organized as a Python package with a modular architecture. Core application logic (UI, state management, etc.) is kept separate from the STT engine implementations. Each speech recognition engine is a self-contained package within the `elograf/engines/` directory, which makes the system extensible and easy to maintain.
 
-All engines implement a common interface defined in `stt_engine.py`:
+### Engine Module Structure
 
-- `add_state_listener()`: Register callback for state changes
-- `add_output_listener()`: Register callback for transcriptions
-- `add_exit_listener()`: Register callback for process exit
-- `start()`, `stop_requested()`, `suspend_requested()`, `resume_requested()`: Lifecycle control
-- `transition_to(state)`: Unified way to broadcast controller-specific state changes
-- `emit_transcription(text)`: Emit final transcription text to listeners
-- `emit_error(message)`: Emit error text and move controller into a failed state
+Each engine is a sub-package that adheres to a common contract, typically containing:
+- `controller.py`: Implements the engine-specific state machine and process runner.
+- `engine.py`: Defines the engine for the `STTFactory`, making it discoverable by the application.
+- `settings.py`: (Optional) Defines a `dataclass` schema for the engine's configuration parameters.
 
-**STTProcessRunner (ABC)**:
-- `start()`, `stop()`, `suspend()`, `resume()`: Process management
-- `poll()`: Event polling
-- `is_running()`: Process status
+### Abstract STT Interface and Base Implementations
 
-#### Race Condition Prevention
+To ensure consistency and reduce code duplication, the application relies on a set of abstract and concrete base classes.
 
-`EngineManager` keeps track of pending refresh operations and now guards them with a timeout. If an engine refuses to stop, a safety timer forcibly tears down the runner before creating the new engine, preventing stale exit events from blocking refreshes.
+**STT Interfaces (`stt_engine.py`)**
+- `STTController`: An abstract interface that all engine controllers implement.
+- `STTProcessRunner`: An abstract interface for classes that manage the engine's lifecycle.
+
+**Controller Base Classes (`base_controller.py`)**
+- `EnumStateController`: A generic base class that provides a shared implementation for controllers using a Python `Enum` for their state machine.
+- `StreamingControllerBase`: Inherits from `EnumStateController` and adds shared logic for suspend/resume functionality, common to all streaming engines.
+
+**Runner Base Class (`streaming_runner_base.py`)**
+- `StreamingRunnerBase`: A crucial base class for all streaming runners. It correctly implements the main recording loop, thread management, and audio capture logic. Child runners inherit from it and only need to implement the engine-specific logic: `_initialize_connection()`, `_process_audio_chunk()`, and `_cleanup_connection()`.
 
 ### Lifecycle Management with EngineManager
 
@@ -44,11 +46,11 @@ All engines implement a common interface defined in `stt_engine.py`:
 
 ### 1. nerd-dictation (Default)
 
-The nerd-dictation integration is implemented in `nerd_controller.py` and provides a local, privacy-focused CLI-based speech recognition solution.
+The nerd-dictation integration is implemented in the `elograf/engines/nerd/` package and provides a local, privacy-focused CLI-based speech recognition solution.
 
 #### Architecture
 
-nerd-dictation is an external command-line tool that EloGraf wraps and monitors. The controller parses stdout to detect state changes.
+nerd-dictation is an external command-line tool that EloGraf wraps and monitors. The controller, defined in `controller.py` within the package, parses stdout to detect state changes.
 
 **Key Features:**
 - Fully offline operation with no network requirements
@@ -98,7 +100,7 @@ EloGraf spawns the main process and monitors stdout, sending control commands vi
 
 ### 2. Whisper Docker
 
-The Whisper Docker integration is implemented in `whisper_docker_controller.py` and runs OpenAI's Whisper ASR in a Docker container as a REST API service.
+The Whisper Docker integration is implemented in the `elograf/engines/whisper/` package and runs OpenAI's Whisper ASR in a Docker container as a REST API service.
 
 #### Architecture
 
@@ -164,7 +166,7 @@ docker run -d --name elograf-whisper \
 
 ### 3. Google Cloud Speech-to-Text V2
 
-The Google Cloud Speech integration is implemented in `google_cloud_speech_controller.py` and uses Google's enterprise-grade speech recognition API with gRPC streaming.
+The Google Cloud Speech integration is implemented in the `elograf/engines/google/` package and uses Google's enterprise-grade speech recognition API with gRPC streaming.
 
 #### Architecture
 
@@ -239,7 +241,7 @@ recognition_config = RecognitionConfig(
 
 ### 4. OpenAI Realtime API
 
-The OpenAI Realtime API integration is implemented in `openai_realtime_controller.py` and uses a WebSocket-based communication model for real-time voice transcription.
+The OpenAI Realtime API integration is implemented in the `elograf/engines/openai/` package and uses a WebSocket-based communication model for real-time voice transcription.
 
 #### Architecture
 
@@ -408,7 +410,7 @@ Mini models are more economical but may have lower accuracy with accents or back
 
 ### 5. AssemblyAI Realtime
 
-The AssemblyAI integration lives in `assemblyai_realtime_controller.py` and provides another cloud-hosted, low-latency streaming engine with optional live transcript formatting.
+The AssemblyAI integration is implemented in the `elograf/engines/assemblyai/` package and provides another cloud-hosted, low-latency streaming engine with optional live transcript formatting.
 
 #### Architecture
 

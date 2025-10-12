@@ -14,6 +14,7 @@ import websocket
 from eloGraf.base_controller import StreamingControllerBase
 from eloGraf.input_simulator import type_text
 from eloGraf.streaming_runner_base import StreamingRunnerBase
+from .settings import AssemblyAISettings
 
 
 class AssemblyAIRealtimeState(Enum):
@@ -47,12 +48,13 @@ STATE_MAP = {
 class AssemblyAIRealtimeController(StreamingControllerBase[AssemblyAIRealtimeState]):
     """Controller handling AssemblyAI realtime state transitions."""
 
-    def __init__(self) -> None:
+    def __init__(self, settings: AssemblyAISettings) -> None:
         super().__init__(
             initial_state=AssemblyAIRealtimeState.IDLE,
             state_map=STATE_MAP,
             engine_name="AssemblyAIRealtime",
         )
+        self._settings = settings
         self._stop_requested = False
 
     def start(self) -> None:
@@ -88,6 +90,10 @@ class AssemblyAIRealtimeController(StreamingControllerBase[AssemblyAIRealtimeSta
             self.transition_to("failed")
         self._emit_exit(return_code)
         self._stop_requested = False
+
+    def get_status_string(self) -> str:
+        model_name = self._settings.model
+        return f"AssemblyAI | Model: {model_name}"
 
 
 class AssemblyAIRealtimeProcessRunner(StreamingRunnerBase):

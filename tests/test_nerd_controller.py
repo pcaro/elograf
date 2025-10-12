@@ -7,6 +7,11 @@ from eloGraf.engines.nerd.controller import (
     NerdDictationProcessRunner,
     NerdDictationState,
 )
+from eloGraf.engines.nerd.settings import NerdSettings
+
+
+def make_controller(**settings_kwargs) -> NerdDictationController:
+    return NerdDictationController(NerdSettings(**settings_kwargs))
 
 
 class FakeProcess:
@@ -41,7 +46,7 @@ class SelectStub:
 
 
 def test_state_transitions_from_output():
-    controller = NerdDictationController()
+    controller = make_controller()
     states = []
     outputs = []
     exits = []
@@ -72,7 +77,7 @@ def test_state_transitions_from_output():
 
 
 def test_fail_to_start_marks_failed():
-    controller = NerdDictationController()
+    controller = make_controller()
     states = []
     exits = []
     controller.add_state_listener(states.append)
@@ -86,7 +91,7 @@ def test_fail_to_start_marks_failed():
 
 
 def test_runner_reads_output_and_handles_exit():
-    controller = NerdDictationController()
+    controller = make_controller()
     states = []
     outputs = []
     exits = []
@@ -133,7 +138,7 @@ def test_runner_reads_output_and_handles_exit():
 
 
 def test_runner_stop_requests_process():
-    controller = NerdDictationController()
+    controller = make_controller()
     states = []
     controller.add_state_listener(states.append)
 
@@ -161,7 +166,7 @@ def test_runner_stop_requests_process():
 
 
 def test_runner_handles_start_failure(caplog):
-    controller = NerdDictationController()
+    controller = make_controller()
     states = []
     exits = []
     controller.add_state_listener(states.append)
@@ -181,7 +186,7 @@ def test_runner_handles_start_failure(caplog):
 
 
 def test_controller_handles_suspend_and_resume_output():
-    controller = NerdDictationController()
+    controller = make_controller()
     states = []
     controller.add_state_listener(states.append)
 
@@ -193,7 +198,7 @@ def test_controller_handles_suspend_and_resume_output():
 
 
 def test_runner_suspend_and_resume_commands():
-    controller = NerdDictationController()
+    controller = make_controller()
     process = FakeProcess(["Dictation resumed"])
     select_stub = SelectStub(process)
     suspend_calls = []

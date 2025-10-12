@@ -9,13 +9,11 @@ import pytest
 from PyQt6.QtWidgets import QApplication
 
 from eloGraf.settings import Settings
-from eloGraf.settings_schema import (
-    EngineSettings,
-    WhisperSettings,
-    GoogleCloudSettings,
-    OpenAISettings,
-    AssemblyAISettings,
-)
+from eloGraf.base_settings import EngineSettings
+from eloGraf.engines.whisper.settings import WhisperSettings
+from eloGraf.engines.google.settings import GoogleCloudSettings
+from eloGraf.engines.openai.settings import OpenAISettings
+from eloGraf.engines.assemblyai.settings import AssemblyAISettings
 
 
 @pytest.fixture(scope="module")
