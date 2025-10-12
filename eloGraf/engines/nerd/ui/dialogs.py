@@ -405,9 +405,15 @@ class ConfigPopup(QDialog):
         return QSize(self.table.horizontalHeader().length(), self.button_height * 12)
 
 
-def launch_model_selection_dialog(parent: QWidget | None = None) -> None:
+def launch_model_selection_dialog(parent: QWidget | None = None, *_, **__) -> None:
     """Launch the nerd-dictation model management dialog."""
     from ....settings import Settings
+
+    # When connected to a clicked(bool) signal, Qt passes the checked state as
+    # the first positional argument. Handle that gracefully by treating bool
+    # inputs as "no parent".
+    if isinstance(parent, bool):  # pragma: no cover - signal wiring safeguard
+        parent = None
     settings = Settings()
     try:
         settings.load()
