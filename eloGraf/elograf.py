@@ -51,8 +51,6 @@ from subprocess import Popen, run
 from zipfile import ZipFile
 import eloGraf.elograf_rc  # type: ignore
 import eloGraf.advanced as advanced  # type: ignore
-import eloGraf.confirm as confirm  # type: ignore
-import eloGraf.custom as custom  # type: ignore
 import eloGraf.version as version  # type: ignore
 from eloGraf.settings import DEFAULT_RATE, Settings
 from eloGraf.model_repository import (
