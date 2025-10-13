@@ -105,3 +105,84 @@ def test_advanced_dialog_populates_settings_instance(qt_app):
     api_widget.setText("new-key")
     updated = dialog.get_engine_settings_dataclass("openai-realtime")
     assert updated.api_key == "new-key"
+
+
+def test_manage_models_action_updates_path(qt_app, monkeypatch, tmp_path):
+    """Clicking manage models should refresh the model path field."""
+    from PyQt6.QtCore import QSettings
+    from eloGraf.dialogs import AdvancedUI
+    from eloGraf.settings import Settings
+
+    backend = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    backend.clear()
+    app_settings = Settings(backend)
+    app_settings.models = [
+        {
+            "language": "en",
+            "name": "model-a",
+            "version": "1",
+            "size": "10MB",
+            "type": "custom",
+            "location": "/tmp/a",
+        }
+    ]
+    app_settings.write_models()
+    app_settings.load()
+
+    dialog = AdvancedUI(app_settings)
+    nerd_tab = dialog.engine_tabs["nerd-dictation"]
+    path_widget = nerd_tab.widgets_map["model_path"]
+    path_widget.setText("old")
+
+    def fake_launch(parent=None, *_, **__):
+        backend.setValue("Model/name", "model-a")
+        backend.sync()
+
+    monkeypatch.setattr(
+        "eloGraf.dialogs.launch_model_selection_dialog",
+        fake_launch,
+    )
+
+    dialog._handle_nerd_models(nerd_tab)
+    assert path_widget.text() == "/tmp/a"
+
+
+def test_custom_ui_edit_persists_changes(qt_app, tmp_path):
+    """Editing an existing model should persist updated metadata."""
+    from PyQt6.QtCore import QSettings
+    from eloGraf.settings import Settings
+    from eloGraf.engines.nerd.ui.dialogs import CustomUI
+
+    backend = QSettings(str(tmp_path / "models.ini"), QSettings.Format.IniFormat)
+    backend.clear()
+    settings = Settings(backend)
+    settings.models = [
+        {
+            "language": "en",
+            "name": "model-a",
+            "version": "1",
+            "size": "10MB",
+            "type": "custom",
+            "location": "/tmp/a",
+        }
+    ]
+    settings.write_models()
+    settings.load()
+
+    model_dir = tmp_path / "model_dir"
+    model_dir.mkdir()
+
+    dialog = CustomUI(0, settings)
+    dialog.ui.languageLineEdit.setText("es")
+    dialog.ui.nameLineEdit.setText("model-b")
+    dialog.ui.versionLineEdit.setText("2")
+    dialog.ui.classLineEdit.setText("updated")
+    dialog.ui.sizeLineEdit.setText("12MB")
+    dialog.ui.filePicker.setText(str(model_dir))
+
+    dialog.accept()
+
+    settings.load()
+    assert settings.models[0]["name"] == "model-b"
+    assert settings.models[0]["language"] == "es"
+    assert settings.models[0]["location"] == str(model_dir)

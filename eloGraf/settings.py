@@ -333,6 +333,7 @@ class Settings:
             backend.setValue("type", model.get("type", ""))
             backend.setValue("location", model.get("location", ""))
         backend.endArray()
+        backend.sync()
 
     def setValue(self, key: str, value) -> None:  # noqa: N802 - Qt naming
         self._backend.setValue(key, value)

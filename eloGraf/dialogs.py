@@ -22,6 +22,8 @@ from PyQt6.QtWidgets import (
     QDialog,
     QKeySequenceEdit,
     QLabel,
+    QLineEdit,
+    QPushButton,
     QWidget,
 )
 
@@ -33,6 +35,7 @@ from eloGraf.engine_settings_registry import (
     get_engine_settings_class,
     get_engine_display_name,
 )
+from eloGraf.engines.nerd.ui.dialogs import launch_model_selection_dialog
 
 def get_pulseaudio_sources() -> List[Tuple[str, str]]:
     """Get available PulseAudio source devices.
@@ -196,6 +199,15 @@ class AdvancedUI(QDialog):
             self.engine_tabs[engine_id] = tab_widget
             self.engine_settings_classes[engine_id] = settings_class
 
+            if engine_id == "nerd-dictation":
+                button = tab_widget.widgets_map.get("manage_models_action")
+                if isinstance(button, QPushButton):
+                    try:
+                        button.clicked.disconnect()
+                    except (TypeError, RuntimeError):
+                        pass
+                    button.clicked.connect(lambda _checked=False, tab=tab_widget: self._handle_nerd_models(tab))
+
     def _populate_engine_dropdown(self) -> None:
         """Populate the engine dropdown with all registered engines."""
         # Clear existing items
@@ -213,6 +225,18 @@ class AdvancedUI(QDialog):
         if not tab or not settings_class:
             return None
         return read_settings_from_tab(tab, settings_class)
+
+    def _handle_nerd_models(self, tab: QWidget) -> None:
+        launch_model_selection_dialog(self)
+        settings_obj = self._settings_ref or Settings()
+        try:
+            settings_obj.load()
+        except Exception:
+            return
+        _, location = settings_obj.current_model()
+        path_widget = getattr(tab, "widgets_map", {}).get("model_path")
+        if isinstance(path_widget, QLineEdit):
+            path_widget.setText(location)
 
     def _on_stt_engine_changed(self, engine: str):
         """Handle engine selection change."""

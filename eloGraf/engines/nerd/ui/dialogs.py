@@ -121,13 +121,15 @@ class CustomUI(QDialog):
                 )
                 self.index = len(self.settings.models)
             else:
-                model = self.settings.models[self.index]
-                model["language"] = language
-                model["name"] = name
-                model["version"] = self.ui.versionLineEdit.text()
-                model["size"] = self.ui.sizeLineEdit.text()
-                model["type"] = self.ui.classLineEdit.text()
-                model["location"] = new_path
+                self.settings.models[self.index] = {
+                    "language": language,
+                    "name": name,
+                    "version": self.ui.versionLineEdit.text(),
+                    "size": self.ui.sizeLineEdit.text(),
+                    "type": self.ui.classLineEdit.text(),
+                    "location": new_path,
+                }
+                self.settings.write_models()
             self.done(self.index)
 
 
