@@ -39,7 +39,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
         if active_controller:
             tooltip_lines.append(active_controller.get_status_string())
-        
+
         self.setToolTip("\n".join(tooltip_lines))
 
     def __init__(self, icon: QIcon, start: bool, ipc: IPCManager, parent=None, temporary_engine: str = None) -> None:
@@ -163,7 +163,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.state_machine.set_idle()
 
     def _handle_dictation_output(self, line: str) -> None:
-        logging.info(f"STT engine: {line}")
+        logging.debug(f"STT engine: {line}")
 
     def _handle_dictation_exit(self, return_code: int) -> None:
         """Handle engine exit."""
