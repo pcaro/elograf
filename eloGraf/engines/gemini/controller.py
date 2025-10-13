@@ -122,6 +122,7 @@ class GeminiLiveProcessRunner(StreamingRunnerBase):
         chunk_duration: float = 0.1,
         vad_enabled: bool = True,
         vad_threshold: float = 500.0,
+        pulse_device: Optional[str] = None,
         input_simulator: Optional[Callable[[str], None]] = None,
     ) -> None:
         super().__init__(
@@ -137,10 +138,12 @@ class GeminiLiveProcessRunner(StreamingRunnerBase):
         self._language_code = language_code
         self._vad_enabled = vad_enabled
         self._vad_threshold = vad_threshold
+        self._pulse_device = pulse_device
         self._input_simulator = input_simulator or type_text
 
         self._audio_queue: Optional[queue.Queue[Optional[bytes]]] = None
         self._response_thread: Optional[threading.Thread] = None
+        self._send_thread: Optional[threading.Thread] = None
         self._client = None
         self._session = None
 
@@ -174,8 +177,11 @@ class GeminiLiveProcessRunner(StreamingRunnerBase):
             return False
 
         self._audio_queue = queue.Queue()
-        self._response_thread = threading.Thread(target=self._response_loop, daemon=True)
+
+        # Start response thread (manages async event loop)
+        self._response_thread = threading.Thread(target=self._async_loop_wrapper, daemon=True)
         self._response_thread.start()
+
         self._controller.set_ready()
         return True
 
@@ -191,6 +197,15 @@ class GeminiLiveProcessRunner(StreamingRunnerBase):
             self._controller.set_transcribing()
             self._audio_queue.put(raw_audio)
 
+    def _create_audio_recorder(self):
+        """Create audio recorder with pulse_device if specified."""
+        from eloGraf.engines.openai.controller import AudioRecorder
+        return AudioRecorder(
+            sample_rate=self._sample_rate,
+            channels=self._channels,
+            device=self._pulse_device,
+        )
+
     def _cleanup_connection(self) -> None:
         if self._audio_queue is not None:
             self._audio_queue.put(None)
@@ -201,8 +216,22 @@ class GeminiLiveProcessRunner(StreamingRunnerBase):
         self._session = None
         self._client = None
 
-    def _response_loop(self) -> None:
-        """Main response processing loop."""
+    def _async_loop_wrapper(self) -> None:
+        """Wrapper to run async event loop in a thread."""
+        import asyncio
+        try:
+            asyncio.run(self._async_streaming_loop())
+        except Exception as exc:  # pragma: no cover - defensive
+            logging.exception("Async loop error")
+            self._controller.emit_error(f"Async loop error: {exc}")
+            self._failure_exit = True
+            self._stop_event.set()
+
+    async def _async_streaming_loop(self) -> None:
+        """Main async streaming loop with bidirectional communication."""
+        import asyncio
+        from google import genai
+
         if not self._client:
             return
 
@@ -216,41 +245,76 @@ class GeminiLiveProcessRunner(StreamingRunnerBase):
                 "input_audio_transcription": {},  # Enable transcription
             }
 
-            self._session = self._client.aio.live.connect(
+            async with self._client.aio.live.connect(
                 model=self._model,
                 config=config
-            )
+            ) as session:
+                self._session = session
 
-            # Send audio chunks from queue
-            while True:
-                if self._audio_queue is None:
-                    break
-                chunk = self._audio_queue.get()
-                if chunk is None:
-                    break
-                if self._stop_event.is_set():
-                    break
+                # Create two concurrent tasks: sending audio and receiving responses
+                send_task = asyncio.create_task(self._send_audio_loop(session))
+                receive_task = asyncio.create_task(self._receive_response_loop(session))
 
-                # Send audio to Live API
-                self._session.send(chunk, mime_type=f"audio/pcm;rate={self._sample_rate}")
-                self._controller.set_recording()
-
-                # Process responses
-                for response in self._session.receive():
-                    if self._stop_event.is_set():
-                        break
-
-                    # Check for transcription in server content
-                    if hasattr(response, 'server_content'):
-                        for part in response.server_content.parts:
-                            if hasattr(part, 'text') and part.text.strip():
-                                transcript = part.text.strip()
-                                self._controller.emit_transcription(transcript)
-                                self._input_simulator(transcript)
+                # Wait for both tasks to complete (or one to fail)
+                await asyncio.gather(send_task, receive_task, return_exceptions=True)
 
         except Exception as exc:  # pragma: no cover - defensive
             logging.exception("Streaming loop error")
             self._controller.emit_error(f"Streaming loop error: {exc}")
+            self._failure_exit = True
+            self._stop_event.set()
+
+    async def _send_audio_loop(self, session) -> None:
+        """Continuously send audio chunks from queue to Live API."""
+        import asyncio
+        from google.genai import types
+
+        while True:
+            if self._audio_queue is None:
+                break
+            if self._stop_event.is_set():
+                break
+
+            # Get audio chunk from queue (non-blocking check)
+            try:
+                chunk = self._audio_queue.get_nowait()
+            except queue.Empty:
+                await asyncio.sleep(0.01)  # Small delay to avoid busy waiting
+                continue
+
+            if chunk is None:  # Sentinel value to stop
+                break
+
+            try:
+                # Send audio to Live API
+                await session.send_realtime_input(
+                    media=types.Blob(
+                        data=chunk,
+                        mime_type=f"audio/pcm;rate={self._sample_rate}"
+                    )
+                )
+                self._controller.set_recording()
+            except Exception as exc:  # pragma: no cover - defensive
+                logging.error(f"Failed to send audio chunk: {exc}")
+                break
+
+    async def _receive_response_loop(self, session) -> None:
+        """Continuously receive and process responses from Live API."""
+        try:
+            async for response in session.receive():
+                if self._stop_event.is_set():
+                    break
+
+                # Check for transcription in server content
+                if hasattr(response, 'server_content'):
+                    for part in response.server_content.parts:
+                        if hasattr(part, 'text') and part.text.strip():
+                            transcript = part.text.strip()
+                            self._controller.emit_transcription(transcript)
+                            self._input_simulator(transcript)
+
+        except Exception as exc:  # pragma: no cover - defensive
+            logging.error(f"Response loop error: {exc}")
             self._failure_exit = True
             self._stop_event.set()
 

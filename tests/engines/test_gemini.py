@@ -4,6 +4,7 @@ import pytest
 from eloGraf.engines.gemini.settings import GeminiSettings
 from eloGraf.engines.gemini.controller import (
     GeminiLiveController,
+    GeminiLiveProcessRunner,
     GeminiLiveState,
 )
 
@@ -119,3 +120,38 @@ def test_controller_handle_exit():
     controller.set_recording()
     controller.handle_exit(1)
     assert controller.state == GeminiLiveState.FAILED
+
+
+def test_runner_configuration():
+    """Test runner accepts configuration parameters."""
+    controller = make_controller()
+    runner = GeminiLiveProcessRunner(
+        controller,
+        api_key="test-api-key",
+        model="gemini-2.0-flash",
+        language_code="fr-FR",
+        sample_rate=24000,
+        channels=1,
+        chunk_duration=0.2,
+        vad_enabled=False,
+        vad_threshold=1000.0,
+        pulse_device="test-device",
+    )
+
+    assert runner._api_key == "test-api-key"
+    assert runner._model == "gemini-2.0-flash"
+    assert runner._language_code == "fr-FR"
+    assert runner._sample_rate == 24000
+    assert runner._channels == 1
+    assert runner._chunk_duration == 0.2
+    assert not runner._vad_enabled
+    assert runner._vad_threshold == 1000.0
+    assert runner._pulse_device == "test-device"
+
+
+def test_runner_is_not_running_initially():
+    """Test runner is not running initially."""
+    controller = make_controller()
+    runner = GeminiLiveProcessRunner(controller, api_key="test-key")
+
+    assert not runner.is_running()
