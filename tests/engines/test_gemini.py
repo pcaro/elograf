@@ -155,3 +155,45 @@ def test_runner_is_not_running_initially():
     runner = GeminiLiveProcessRunner(controller, api_key="test-key")
 
     assert not runner.is_running()
+
+
+def test_factory_creates_gemini_live_engine():
+    """Test factory creates Gemini Live engine."""
+    from eloGraf.stt_factory import create_stt_engine
+
+    controller, runner = create_stt_engine("gemini-live")
+
+    assert isinstance(controller, GeminiLiveController)
+    assert isinstance(runner, GeminiLiveProcessRunner)
+
+
+def test_get_available_engines_includes_gemini():
+    """Test get_available_engines includes Gemini Live."""
+    from eloGraf.stt_factory import get_available_engines
+
+    engines = get_available_engines()
+    assert "gemini-live" in engines
+
+
+def test_settings_gemini_fields():
+    """Test settings has Gemini Live fields."""
+    from eloGraf.settings import Settings
+
+    settings = Settings()
+    settings.load()
+
+    assert hasattr(settings, 'geminiApiKey')
+    assert hasattr(settings, 'geminiModel')
+    assert hasattr(settings, 'geminiLanguageCode')
+    assert hasattr(settings, 'geminiSampleRate')
+    assert hasattr(settings, 'geminiChannels')
+    assert hasattr(settings, 'geminiVadEnabled')
+    assert hasattr(settings, 'geminiVadThreshold')
+
+    # Test defaults
+    assert settings.geminiModel == "gemini-2.5-flash"
+    assert settings.geminiLanguageCode == "en-US"
+    assert settings.geminiSampleRate == 16000
+    assert settings.geminiChannels == 1
+    assert settings.geminiVadEnabled is True
+    assert settings.geminiVadThreshold == 500.0

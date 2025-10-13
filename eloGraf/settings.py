@@ -13,6 +13,7 @@ from eloGraf.engines.whisper.settings import WhisperSettings
 from eloGraf.engines.google.settings import GoogleCloudSettings
 from eloGraf.engines.openai.settings import OpenAISettings
 from eloGraf.engines.assemblyai.settings import AssemblyAISettings
+from eloGraf.engines.gemini.settings import GeminiSettings
 
 DEFAULT_RATE: int = 44100
 
@@ -82,6 +83,13 @@ class Settings:
         self.assemblyLanguage: str = ""
         self.assemblySampleRate: int = 16000
         self.assemblyChannels: int = 1
+        self.geminiApiKey: str = ""
+        self.geminiModel: str = "gemini-2.5-flash"
+        self.geminiLanguageCode: str = "en-US"
+        self.geminiSampleRate: int = 16000
+        self.geminiChannels: int = 1
+        self.geminiVadEnabled: bool = True
+        self.geminiVadThreshold: float = 500.0
 
     def load(self) -> None:
         backend = self._backend
@@ -146,6 +154,13 @@ class Settings:
         self.assemblyLanguage = backend.value("AssemblyLanguage", "", type=str)
         self.assemblySampleRate = backend.value("AssemblySampleRate", 16000, type=int)
         self.assemblyChannels = backend.value("AssemblyChannels", 1, type=int)
+        self.geminiApiKey = backend.value("GeminiApiKey", "", type=str)
+        self.geminiModel = backend.value("GeminiModel", "gemini-2.5-flash", type=str)
+        self.geminiLanguageCode = backend.value("GeminiLanguageCode", "en-US", type=str)
+        self.geminiSampleRate = backend.value("GeminiSampleRate", 16000, type=int)
+        self.geminiChannels = backend.value("GeminiChannels", 1, type=int)
+        self.geminiVadEnabled = backend.value("GeminiVadEnabled", True, type=bool)
+        self.geminiVadThreshold = backend.value("GeminiVadThreshold", 500.0, type=float)
 
         self.models = []
         count = backend.beginReadArray("Models")
@@ -292,6 +307,28 @@ class Settings:
             backend.remove("AssemblyChannels")
         else:
             backend.setValue("AssemblyChannels", self.assemblyChannels)
+        self._set_or_remove("GeminiApiKey", self.geminiApiKey)
+        if self.geminiModel == "gemini-2.5-flash":
+            backend.remove("GeminiModel")
+        else:
+            backend.setValue("GeminiModel", self.geminiModel)
+        if self.geminiLanguageCode == "en-US":
+            backend.remove("GeminiLanguageCode")
+        else:
+            backend.setValue("GeminiLanguageCode", self.geminiLanguageCode)
+        if self.geminiSampleRate == 16000:
+            backend.remove("GeminiSampleRate")
+        else:
+            backend.setValue("GeminiSampleRate", self.geminiSampleRate)
+        if self.geminiChannels == 1:
+            backend.remove("GeminiChannels")
+        else:
+            backend.setValue("GeminiChannels", self.geminiChannels)
+        backend.setValue("GeminiVadEnabled", int(self.geminiVadEnabled))
+        if self.geminiVadThreshold == 500.0:
+            backend.remove("GeminiVadThreshold")
+        else:
+            backend.setValue("GeminiVadThreshold", self.geminiVadThreshold)
         if self.deviceName == "default":
             backend.remove("DeviceName")
         else:
@@ -388,7 +425,7 @@ class Settings:
 
     def get_engine_settings(
         self, engine_type: Optional[str] = None
-    ) -> Union[NerdSettings, WhisperSettings, GoogleCloudSettings, OpenAISettings, AssemblyAISettings, EngineSettings]:
+    ) -> Union[NerdSettings, WhisperSettings, GoogleCloudSettings, OpenAISettings, AssemblyAISettings, GeminiSettings, EngineSettings]:
         """
         Get type-safe engine settings dataclass for the requested engine.
 
@@ -468,13 +505,25 @@ class Settings:
                 sample_rate=self.assemblySampleRate,
                 channels=self.assemblyChannels,
             )
+        if canonical_type == "gemini-live":
+            return GeminiSettings(
+                engine_type=canonical_type,
+                device_name=self.deviceName,
+                api_key=self.geminiApiKey,
+                model=self.geminiModel,
+                language_code=self.geminiLanguageCode,
+                sample_rate=self.geminiSampleRate,
+                channels=self.geminiChannels,
+                vad_enabled=self.geminiVadEnabled,
+                vad_threshold=self.geminiVadThreshold,
+            )
         return EngineSettings(
             engine_type=canonical_type,
             device_name=self.deviceName,
         )
 
     def update_from_dataclass(
-        self, engine_settings: Union[NerdSettings, WhisperSettings, GoogleCloudSettings, OpenAISettings, AssemblyAISettings]
+        self, engine_settings: Union[NerdSettings, WhisperSettings, GoogleCloudSettings, OpenAISettings, AssemblyAISettings, GeminiSettings]
     ) -> None:
         """
         Update settings from a dataclass instance via its plugin.
