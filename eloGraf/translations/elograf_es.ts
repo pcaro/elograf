@@ -616,7 +616,7 @@ Se usa para añadir una coma, o parar completamente el dictado según retardos p
       <location filename="../tray_icon.py" line="202" />
       <location filename="../tray_icon.py" line="45" />
       <source>Suspend dictation</source>
-      <translation>Suspender dictado</translation>
+      <translation>Suspender el dictado</translation>
     </message>
     <message>
       <location filename="../tray_icon.py" line="200" />
