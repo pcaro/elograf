@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <ui version="4.0">
  <class>Dialog</class>
  <widget class="QDialog" name="Dialog">
@@ -17,7 +17,7 @@
    </sizepolicy>
   </property>
   <property name="windowTitle">
-   <string>Advanced parameters</string>
+   <string>Advanced Settings</string>
   </property>
   <layout class="QGridLayout" name="gridLayout_2">
    <item row="0" column="0">
@@ -79,7 +79,7 @@
        <item>
         <layout class="QGridLayout" name="general_grid_layout" columnstretch="0,2">
          <item row="0" column="1">
-          <widget class="QLineEdit" name="precommand"/>
+          <widget class="QLineEdit" name="precommand" />
          </item>
          <item row="12" column="1">
           <widget class="QComboBox" name="tool_cb">
@@ -101,12 +101,12 @@
          <item row="3" column="1">
           <widget class="QComboBox" name="deviceName">
            <property name="currentText">
-            <string/>
+            <string />
            </property>
           </widget>
          </item>
          <item row="2" column="1">
-          <widget class="QLineEdit" name="env"/>
+          <widget class="QLineEdit" name="env" />
          </item>
          <item row="12" column="0">
           <widget class="QLabel" name="label_13">
@@ -116,7 +116,7 @@
           </widget>
          </item>
          <item row="1" column="1">
-          <widget class="QLineEdit" name="postcommand"/>
+          <widget class="QLineEdit" name="postcommand" />
          </item>
          <item row="2" column="0">
           <widget class="QLabel" name="label_12">
@@ -149,7 +149,7 @@
           <widget class="QLabel" name="label">
            <property name="toolTip">
             <string>The name of the pulse-audio device to use for recording. 
-See the output of &quot;pactl list sources&quot; to find device names (using the identifier following &quot;Name:&quot;)</string>
+See the output of "pactl list sources" to find device names (using the identifier following "Name:")</string>
            </property>
            <property name="text">
             <string>Pulse device name</string>
@@ -183,7 +183,7 @@ See the output of &quot;pactl list sources&quot; to find device names (using the
          <item row="14" column="1">
           <widget class="QCheckBox" name="direct_click_cb">
            <property name="text">
-            <string/>
+            <string />
            </property>
           </widget>
          </item>
@@ -205,8 +205,8 @@ See the output of &quot;pactl list sources&quot; to find device names (using the
     </widget>
    </item>
   </layout>
- </widget>
- <resources/>
+ <property name="windowIcon"><iconset resource="elograf.qrc"><normaloff>:/icons/elograf/24/micro.png</normaloff></iconset></property></widget>
+ <resources />
  <connections>
   <connection>
    <sender>buttonBox</sender>
