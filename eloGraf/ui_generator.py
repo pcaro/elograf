@@ -145,8 +145,8 @@ def generate_settings_tab(settings_class: Type, instance: Any | None = None) -> 
     widgets_map = {}
 
     for field in dataclasses.fields(settings_class):
-        # Skip fields without metadata or with repr=False (like action buttons that shouldn't show in forms)
-        if not field.metadata:
+        # Skip fields without metadata or explicitly hidden/internal fields
+        if not field.metadata or field.metadata.get("hidden"):
             continue
 
         # Get current value from instance

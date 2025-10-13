@@ -15,7 +15,7 @@ class WhisperSettings(EngineSettings):
 
     engine_type: str = field(
         default="whisper-docker",
-        metadata={"label": "Engine Type", "widget": "text", "readonly": True}
+        metadata={"hidden": True}
     )
 
     device_name: str = field(

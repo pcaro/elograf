@@ -14,7 +14,7 @@ class OpenAISettings(EngineSettings):
 
     engine_type: str = field(
         default="openai-realtime",
-        metadata={"label": "Engine Type", "widget": "text", "readonly": True}
+        metadata={"hidden": True}
     )
 
     device_name: str = field(

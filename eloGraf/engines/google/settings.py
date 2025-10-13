@@ -14,7 +14,7 @@ class GoogleCloudSettings(EngineSettings):
 
     engine_type: str = field(
         default="google-cloud-speech",
-        metadata={"label": "Engine Type", "widget": "text", "readonly": True}
+        metadata={"hidden": True}
     )
 
     device_name: str = field(

@@ -14,7 +14,7 @@ class AssemblyAISettings(EngineSettings):
 
     engine_type: str = field(
         default="assemblyai",
-        metadata={"label": "Engine Type", "widget": "text", "readonly": True}
+        metadata={"hidden": True}
     )
 
     device_name: str = field(
