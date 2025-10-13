@@ -18,6 +18,14 @@ def qt_app():
     yield app
 
 
+@pytest.fixture(autouse=True)
+def stub_pulseaudio(monkeypatch):
+    monkeypatch.setattr(
+        "eloGraf.dialogs.get_pulseaudio_sources",
+        lambda: [("default", "Default Device")],
+    )
+
+
 def test_advanced_dialog_creates_dynamic_tabs(qt_app):
     """Test that AdvancedUI creates tabs for all registered engines."""
     from eloGraf.dialogs import AdvancedUI

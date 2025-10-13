@@ -485,6 +485,8 @@ class SystemTrayIcon(QSystemTrayIcon):
             # Engine-specific settings from dynamic tabs
             from eloGraf.engine_settings_registry import get_all_engine_ids
 
+            selected_engine = self.settings.sttEngine
+
             for engine_id in get_all_engine_ids():
                 # Skip nerd-dictation as its controls live in the General tab
                 if engine_id == "nerd-dictation":
@@ -494,6 +496,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                     continue
                 try:
                     self.settings.update_from_dataclass(engine_settings)
+                    self.settings.sttEngine = selected_engine
                 except Exception as exc:  # pragma: no cover - defensive
                     logging.debug("Failed to update settings for %s: %s", engine_id, exc)
 
