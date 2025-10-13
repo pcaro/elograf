@@ -334,9 +334,11 @@ class SystemTrayIcon(QSystemTrayIcon):
         logging.debug(
             "Starting STT engine with the command {}".format(" ".join(cmd))
         )
-        if self.dictation_runner.start(cmd, env=env):
-            self.state_machine.set_loading()
-        else:
+        # Switch icon to loading before starting the runner so an immediate
+        # READY notification cannot be overwritten by our own state change.
+        self.state_machine.set_loading()
+
+        if not self.dictation_runner.start(cmd, env=env):
             self.state_machine.set_idle()
             self._postcommand_ran = True
             return
