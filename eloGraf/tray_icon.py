@@ -15,7 +15,7 @@ from eloGraf.engine_manager import EngineManager
 from eloGraf.ipc_manager import IPCManager
 from eloGraf.stt_engine import STTController, STTProcessRunner
 from eloGraf.status import DictationStatus
-from eloGraf.settings import DEFAULT_RATE, Settings
+from eloGraf.settings import Settings
 from eloGraf.pidfile import remove_pid_file
 from eloGraf.state_machine import DictationStateMachine, IconState
 from eloGraf.icon_factory import IconFactory
@@ -418,19 +418,6 @@ class SystemTrayIcon(QSystemTrayIcon):
             adv_window.ui.deviceName.setCurrentIndex(index)
         adv_window.ui.direct_click_cb.setChecked(self.settings.directClick)
 
-        # Nerd-Dictation settings
-        adv_window.ui.sampleRate.setText(str(self.settings.sampleRate))
-        adv_window.ui.timeout.setValue(self.settings.timeout)
-        adv_window.ui.timeoutDisplay.setText(str(self.settings.timeout))
-        adv_window.ui.idleTime.setValue(self.settings.idleTime)
-        adv_window.ui.idleDisplay.setText(str(self.settings.idleTime))
-        adv_window.ui.punctuate.setValue(self.settings.punctuate)
-        adv_window.ui.punctuateDisplay.setText(str(self.settings.punctuate))
-        adv_window.ui.fullSentence.setChecked(self.settings.fullSentence)
-        adv_window.ui.digits.setChecked(self.settings.digits)
-        adv_window.ui.useSeparator.setChecked(self.settings.useSeparator)
-        adv_window.ui.freecommand.setText(self.settings.freeCommand)
-
         # Shortcuts
         adv_window.beginShortcut.setKeySequence(self.settings.beginShortcut)
         adv_window.endShortcut.setKeySequence(self.settings.endShortcut)
@@ -453,19 +440,6 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.settings.deviceName = device_data if device_data else "default"
             self.settings.directClick = adv_window.ui.direct_click_cb.isChecked()
 
-            # Nerd-Dictation settings
-            try:
-                self.settings.sampleRate = int(adv_window.ui.sampleRate.text())
-            except (ValueError, TypeError):
-                self.settings.sampleRate = DEFAULT_RATE
-            self.settings.timeout = adv_window.ui.timeout.value()
-            self.settings.idleTime = adv_window.ui.idleTime.value()
-            self.settings.punctuate = adv_window.ui.punctuate.value()
-            self.settings.fullSentence = adv_window.ui.fullSentence.isChecked()
-            self.settings.digits = adv_window.ui.digits.isChecked()
-            self.settings.useSeparator = adv_window.ui.useSeparator.isChecked()
-            self.settings.freeCommand = adv_window.ui.freecommand.text()
-
             # Shortcuts
             self.settings.beginShortcut = adv_window.beginShortcut.keySequence().toString()
             self.settings.endShortcut = adv_window.endShortcut.keySequence().toString()
@@ -482,9 +456,6 @@ class SystemTrayIcon(QSystemTrayIcon):
             selected_engine = self.settings.sttEngine
 
             for engine_id in get_all_engine_ids():
-                # Skip nerd-dictation as its controls live in the General tab
-                if engine_id == "nerd-dictation":
-                    continue
                 engine_settings = adv_window.get_engine_settings_dataclass(engine_id)
                 if engine_settings is None:
                     continue

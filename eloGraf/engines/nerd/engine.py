@@ -46,7 +46,8 @@ class NerdDictationPlugin(EnginePlugin):
         app_settings.fullSentence = engine_settings.full_sentence
         app_settings.digits = engine_settings.digits
         app_settings.useSeparator = engine_settings.use_separator
-        # TODO: handle model_path and free_command
+        app_settings.freeCommand = engine_settings.free_command
+        # TODO: handle model_path
 
     def check_availability(self):  # type: ignore[override]
         if shutil.which("nerd-dictation"):

@@ -219,3 +219,43 @@ def test_runner_suspend_and_resume_commands():
 
     assert suspend_calls == [True]
     assert resume_calls == [True]
+
+
+def test_plugin_apply_updates_settings(tmp_path):
+    from PyQt6.QtCore import QSettings
+
+    from eloGraf.engine_plugin import get_plugin
+    from eloGraf.settings import Settings
+    from eloGraf.engines.nerd.settings import NerdSettings
+
+    backend_path = tmp_path / "settings.ini"
+    backend = QSettings(str(backend_path), QSettings.Format.IniFormat)
+    backend.clear()
+    settings = Settings(backend)
+
+    plugin = get_plugin("nerd-dictation")
+    assert plugin is not None
+
+    nerd_settings = NerdSettings(
+        device_name="usb-mic",
+        sample_rate=22050,
+        timeout=15,
+        idle_time=50,
+        punctuate_timeout=3,
+        full_sentence=True,
+        digits=True,
+        use_separator=True,
+        free_command="--extra",
+    )
+
+    plugin.apply_to_settings(settings, nerd_settings)
+
+    assert settings.sampleRate == 22050
+    assert settings.timeout == 15
+    assert settings.idleTime == 50
+    assert settings.punctuate == 3
+    assert settings.fullSentence is True
+    assert settings.digits is True
+    assert settings.useSeparator is True
+    assert settings.freeCommand == "--extra"
+    assert settings.deviceName == "usb-mic"
