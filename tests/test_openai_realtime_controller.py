@@ -16,6 +16,35 @@ def make_controller(**settings_kwargs) -> OpenAIRealtimeController:
     return OpenAIRealtimeController(OpenAISettings(**settings_kwargs))
 
 
+def test_openai_settings_defaults():
+    settings = OpenAISettings()
+    assert settings.engine_type == "openai-realtime"
+    assert settings.model == "gpt-4o-transcribe"
+    assert settings.api_version == "2025-08-28"
+    assert settings.sample_rate == 16000
+    assert settings.channels == 1
+    assert settings.vad_enabled is True
+    assert settings.vad_threshold == 0.5
+    assert settings.vad_prefix_padding_ms == 300
+    assert settings.vad_silence_duration_ms == 200
+    assert settings.language == "en-US"
+    assert settings.api_key == ""
+
+
+def test_openai_settings_validates_vad_threshold():
+    with pytest.raises(ValueError, match="VAD threshold must be between 0 and 1"):
+        OpenAISettings(vad_threshold=-0.1)
+    with pytest.raises(ValueError, match="VAD threshold must be between 0 and 1"):
+        OpenAISettings(vad_threshold=1.1)
+
+
+def test_openai_settings_accepts_valid_vad_thresholds():
+    settings_low = OpenAISettings(vad_threshold=0.0)
+    settings_high = OpenAISettings(vad_threshold=1.0)
+    assert settings_low.vad_threshold == 0.0
+    assert settings_high.vad_threshold == 1.0
+
+
 def test_controller_state_transitions():
     """Test OpenAI Realtime controller state transitions."""
     controller = make_controller()

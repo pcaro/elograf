@@ -15,6 +15,33 @@ def make_controller(**settings_kwargs) -> GoogleCloudSpeechController:
     return GoogleCloudSpeechController(GoogleCloudSettings(**settings_kwargs))
 
 
+def test_google_cloud_settings_defaults():
+    settings = GoogleCloudSettings()
+    assert settings.engine_type == "google-cloud-speech"
+    assert settings.language_code == "en-US"
+    assert settings.model == "chirp_3"
+    assert settings.sample_rate == 16000
+    assert settings.channels == 1
+    assert settings.vad_enabled is True
+    assert settings.vad_threshold == 500.0
+    assert settings.credentials_path == ""
+    assert settings.project_id == ""
+
+
+def test_google_cloud_settings_validates_sample_rate():
+    with pytest.raises(ValueError, match="Invalid sample rate"):
+        GoogleCloudSettings(sample_rate=7999)
+    with pytest.raises(ValueError, match="Invalid sample rate"):
+        GoogleCloudSettings(sample_rate=48001)
+
+
+def test_google_cloud_settings_accepts_valid_sample_rates():
+    settings_low = GoogleCloudSettings(sample_rate=8000)
+    settings_high = GoogleCloudSettings(sample_rate=48000)
+    assert settings_low.sample_rate == 8000
+    assert settings_high.sample_rate == 48000
+
+
 def test_controller_state_transitions():
     """Test Google Cloud Speech controller state transitions."""
     controller = make_controller()

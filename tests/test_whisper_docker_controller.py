@@ -12,6 +12,38 @@ def make_controller(**settings_kwargs) -> WhisperDockerController:
     return WhisperDockerController(WhisperSettings(**settings_kwargs))
 
 
+def test_whisper_settings_defaults():
+    settings = WhisperSettings()
+    assert settings.engine_type == "whisper-docker"
+    assert settings.model == "base"
+    assert settings.port == 9000
+    assert settings.device_name == "default"
+
+
+def test_whisper_settings_custom_values():
+    settings = WhisperSettings(model="large", port=9001, device_name="custom-device")
+    assert settings.model == "large"
+    assert settings.port == 9001
+    assert settings.device_name == "custom-device"
+
+
+def test_whisper_settings_validates_port_too_low():
+    with pytest.raises(ValueError, match="Invalid port"):
+        WhisperSettings(port=0)
+
+
+def test_whisper_settings_validates_port_too_high():
+    with pytest.raises(ValueError, match="Invalid port"):
+        WhisperSettings(port=65536)
+
+
+def test_whisper_settings_accepts_valid_ports():
+    settings_low = WhisperSettings(port=1)
+    settings_high = WhisperSettings(port=65535)
+    assert settings_low.port == 1
+    assert settings_high.port == 65535
+
+
 def test_controller_state_transitions():
     controller = make_controller()
     states = []
