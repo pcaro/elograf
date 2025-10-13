@@ -33,7 +33,7 @@ class GeminiSettings(EngineSettings):
         default="",
         metadata={
             "label": "API Key",
-            "widget": "text",
+            "widget": "password",
             "tooltip": "Google AI API key from https://aistudio.google.com/apikey",
         }
     )

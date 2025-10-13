@@ -28,3 +28,8 @@ def test_gemini_settings_accepts_valid_sample_rates():
     settings_high = GeminiSettings(sample_rate=48000)
     assert settings_low.sample_rate == 8000
     assert settings_high.sample_rate == 48000
+
+
+def test_gemini_settings_validates_channels():
+    with pytest.raises(ValueError, match="Gemini Live API requires mono audio"):
+        GeminiSettings(channels=2)
