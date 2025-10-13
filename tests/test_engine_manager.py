@@ -8,6 +8,7 @@ import pytest
 from PyQt6.QtWidgets import QApplication
 
 from eloGraf.engine_manager import EngineManager
+from eloGraf.status import DictationStatus
 from eloGraf.stt_engine import STTController, STTProcessRunner
 
 
@@ -72,6 +73,10 @@ class DummyController(STTController):
 
     def get_status_string(self) -> str:
         return "Dummy Controller"
+
+    @property
+    def dictation_status(self) -> DictationStatus:
+        return DictationStatus.IDLE
 
 
 class HangingRunner(STTProcessRunner):

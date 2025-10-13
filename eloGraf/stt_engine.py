@@ -6,6 +6,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Callable, Dict, Optional, Sequence
 
+from eloGraf.status import DictationStatus
+
 StateListener = Callable[[object], None]
 OutputListener = Callable[[str], None]
 ExitListener = Callable[[int], None]
@@ -120,6 +122,12 @@ class STTController(ABC):
         Returns:
             A formatted status string.
         """
+        pass
+
+    @property
+    @abstractmethod
+    def dictation_status(self) -> DictationStatus:
+        """Translates the engine's specific internal state to a generic DictationStatus."""
         pass
 
 

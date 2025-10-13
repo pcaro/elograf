@@ -4,6 +4,7 @@ import unittest
 from enum import Enum, auto
 
 from eloGraf.base_controller import StreamingControllerBase
+from eloGraf.status import DictationStatus
 
 
 class SampleState(Enum):
@@ -56,6 +57,18 @@ class SampleStreamingController(StreamingControllerBase[SampleState]):
 
     def get_status_string(self) -> str:
         return "SampleEngine | Test"
+
+    @property
+    def dictation_status(self) -> DictationStatus:
+        if self.state in (SampleState.IDLE,):
+            return DictationStatus.IDLE
+        elif self.state in (SampleState.RECORDING,):
+            return DictationStatus.LISTENING
+        elif self.state == SampleState.SUSPENDED:
+            return DictationStatus.SUSPENDED
+        elif self.state == SampleState.FAILED:
+            return DictationStatus.FAILED
+        return DictationStatus.IDLE
 
 
 class TestStreamingControllerBase(unittest.TestCase):

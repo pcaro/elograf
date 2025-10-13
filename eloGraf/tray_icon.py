@@ -14,10 +14,7 @@ from eloGraf.dictation import CommandBuildError, build_dictation_command
 from eloGraf.engine_manager import EngineManager
 from eloGraf.ipc_manager import IPCManager
 from eloGraf.stt_engine import STTController, STTProcessRunner
-from eloGraf.engines.nerd.controller import NerdDictationState
-from eloGraf.engines.whisper.controller import WhisperDockerState
-from eloGraf.engines.google.controller import GoogleCloudSpeechState
-from eloGraf.engines.openai.controller import OpenAIRealtimeState
+from eloGraf.status import DictationStatus
 from eloGraf.settings import DEFAULT_RATE, Settings
 from eloGraf.pidfile import remove_pid_file
 from eloGraf.state_machine import DictationStateMachine, IconState
@@ -151,20 +148,17 @@ class SystemTrayIcon(QSystemTrayIcon):
                 self.toggleAction.setText(self.tr("Start dictation"))
         self._update_action_states()
 
-    def _handle_dictation_state(self, state) -> None:
+    def _handle_dictation_state(self, status: DictationStatus) -> None:
         """Handle state changes from STT engine."""
-        # Handle both NerdDictationState and WhisperDockerState
-        state_name = state.name if hasattr(state, 'name') else str(state)
-
-        if state_name in ('STARTING', 'LOADING'):
+        if status == DictationStatus.INITIALIZING:
             self.state_machine.set_loading()
-        elif state_name in ('READY', 'DICTATING', 'RECORDING', 'TRANSCRIBING'):
+        elif status == DictationStatus.LISTENING:
             self.state_machine.set_ready()
-        elif state_name == 'SUSPENDED':
+        elif status == DictationStatus.SUSPENDED:
             self.state_machine.set_suspended()
-        elif state_name in ('STOPPING', 'IDLE'):
+        elif status == DictationStatus.IDLE:
             self.state_machine.set_idle()
-        elif state_name == 'FAILED':
+        elif status == DictationStatus.FAILED:
             logging.error("STT engine process failed")
             self.state_machine.set_idle()
 

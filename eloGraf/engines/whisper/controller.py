@@ -16,6 +16,7 @@ from typing import Callable, Dict, List, Optional
 import requests
 
 from eloGraf.base_controller import StreamingControllerBase
+from eloGraf.status import DictationStatus
 from eloGraf.input_simulator import type_text
 from eloGraf.streaming_runner_base import StreamingRunnerBase
 from .settings import WhisperSettings
@@ -94,6 +95,19 @@ class WhisperDockerController(StreamingControllerBase[WhisperDockerState]):
         model_name = self._settings.model
         language = self._settings.language or "Auto-detect"
         return f"Whisper Docker | Model: {model_name} | Lang: {language}"
+
+    @property
+    def dictation_status(self) -> DictationStatus:
+        if self.state == WhisperDockerState.STARTING:
+            return DictationStatus.INITIALIZING
+        elif self.state in (WhisperDockerState.READY, WhisperDockerState.RECORDING, WhisperDockerState.TRANSCRIBING):
+            return DictationStatus.LISTENING
+        elif self.state == WhisperDockerState.SUSPENDED:
+            return DictationStatus.SUSPENDED
+        elif self.state == WhisperDockerState.FAILED:
+            return DictationStatus.FAILED
+        else:
+            return DictationStatus.IDLE
 
 
 class WhisperDockerProcessRunner(StreamingRunnerBase):

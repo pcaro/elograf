@@ -140,9 +140,6 @@ class AdvancedUI(QDialog):
         self._add_shortcuts_config()
         self._populate_audio_devices()
 
-        # Remove all static engine tabs from the UI file
-        self._remove_static_engine_tabs()
-
         # Generate dynamic tabs for all engines
         self._generate_engine_tabs()
 
@@ -151,23 +148,6 @@ class AdvancedUI(QDialog):
 
         self.ui.stt_engine_cb.currentTextChanged.connect(self._on_stt_engine_changed)
 
-    def _remove_static_engine_tabs(self) -> None:
-        """Remove all engine tabs from the .ui file, keeping only General tab."""
-        # List of tab object names to remove (engine tabs from .ui file)
-        tabs_to_remove = [
-            "nerd_dictation_tab",
-            "whisper_docker_tab",
-            "google_cloud_tab",
-            "openai_tab",
-        ]
-
-        # Remove tabs by finding their index and removing from back to front
-        for tab_name in tabs_to_remove:
-            if hasattr(self.ui, tab_name):
-                tab = getattr(self.ui, tab_name)
-                idx = self.ui.tabWidget.indexOf(tab)
-                if idx >= 0:
-                    self.ui.tabWidget.removeTab(idx)
 
     def _generate_engine_tabs(self) -> None:
         """Generate tabs dynamically for all registered engines."""

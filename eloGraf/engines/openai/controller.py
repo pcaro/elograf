@@ -16,6 +16,7 @@ from subprocess import PIPE, Popen, CalledProcessError, run
 from typing import Callable, Dict, List, Optional
 
 from eloGraf.base_controller import StreamingControllerBase
+from eloGraf.status import DictationStatus
 from eloGraf.input_simulator import type_text
 from eloGraf.streaming_runner_base import StreamingRunnerBase
 from .settings import OpenAISettings
@@ -99,6 +100,19 @@ class OpenAIRealtimeController(StreamingControllerBase[OpenAIRealtimeState]):
         model_name = self._settings.model
         language = self._settings.language
         return f"OpenAI Realtime | Model: {model_name} | Lang: {language}"
+
+    @property
+    def dictation_status(self) -> DictationStatus:
+        if self.state in (OpenAIRealtimeState.STARTING, OpenAIRealtimeState.CONNECTING):
+            return DictationStatus.INITIALIZING
+        elif self.state in (OpenAIRealtimeState.READY, OpenAIRealtimeState.RECORDING, OpenAIRealtimeState.TRANSCRIBING):
+            return DictationStatus.LISTENING
+        elif self.state == OpenAIRealtimeState.SUSPENDED:
+            return DictationStatus.SUSPENDED
+        elif self.state == OpenAIRealtimeState.FAILED:
+            return DictationStatus.FAILED
+        else:
+            return DictationStatus.IDLE
 
 
 class OpenAIRealtimeProcessRunner(StreamingRunnerBase):

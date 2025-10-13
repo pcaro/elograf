@@ -11,3 +11,4 @@ dist/
 
 # Version file generated at build time
 eloGraf/version.py
+.serena/

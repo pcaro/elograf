@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QApplication
 
 from eloGraf.settings import Settings
 from eloGraf.stt_engine import STTController, STTProcessRunner
+from eloGraf.status import DictationStatus
 from eloGraf.tray_icon import SystemTrayIcon
 
 
@@ -86,6 +87,19 @@ class FakeController(STTController):
 
     def get_status_string(self) -> str:
         return "Fake Controller | Demo"
+
+    @property
+    def dictation_status(self) -> DictationStatus:
+        last_state = self.states[-1] if self.states else "IDLE"
+        if last_state in ("STARTING", "LOADING"):
+            return DictationStatus.INITIALIZING
+        elif last_state in ("READY", "DICTATING"):
+            return DictationStatus.LISTENING
+        elif last_state == "SUSPENDED":
+            return DictationStatus.SUSPENDED
+        elif last_state == "FAILED":
+            return DictationStatus.FAILED
+        return DictationStatus.IDLE
 
 
 class FakeRunner(STTProcessRunner):

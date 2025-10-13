@@ -7,6 +7,7 @@ from subprocess import PIPE, Popen, STDOUT
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from eloGraf.base_controller import EnumStateController
+from eloGraf.status import DictationStatus
 from eloGraf.stt_engine import STTProcessRunner
 from .settings import NerdSettings
 
@@ -100,6 +101,20 @@ class NerdDictationController(EnumStateController[NerdDictationState]):
     def get_status_string(self) -> str:
         model_name = self._settings.model_path
         return f"Nerd-Dictation | Model: {model_name or 'Not Selected'}"
+
+    @property
+    def dictation_status(self) -> DictationStatus:
+        # self.state is the internal NerdDictationState
+        if self.state in (NerdDictationState.STARTING, NerdDictationState.LOADING):
+            return DictationStatus.INITIALIZING
+        elif self.state in (NerdDictationState.READY, NerdDictationState.DICTATING):
+            return DictationStatus.LISTENING
+        elif self.state == NerdDictationState.SUSPENDED:
+            return DictationStatus.SUSPENDED
+        elif self.state == NerdDictationState.FAILED:
+            return DictationStatus.FAILED
+        else:
+            return DictationStatus.IDLE
 
 
 class NerdDictationProcessRunner(STTProcessRunner):

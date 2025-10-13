@@ -14,6 +14,7 @@ from eloGraf.settings import Settings
 from eloGraf.stt_engine import STTController, STTProcessRunner
 from eloGraf.engine_plugin import normalize_engine_name
 from eloGraf.stt_factory import create_stt_engine
+from eloGraf.status import DictationStatus
 
 
 class FailureType(Enum):
@@ -81,10 +82,14 @@ class EngineManager:
             self._set_active_engine(temporary_engine, as_temporary=True)
 
         # Callbacks (set by client code)
-        self.on_state_change: Optional[Callable[[Any], None]] = None
+        self.on_state_change: Optional[Callable[[DictationStatus], None]] = None
         self.on_output: Optional[Callable[[str], None]] = None
         self.on_exit: Optional[Callable[[int], None]] = None
         self.on_refresh_complete: Optional[Callable[[], None]] = None
+
+    def _handle_internal_state_change(self, internal_state: object) -> None:
+        if self.on_state_change and self._controller:
+            self.on_state_change(self._controller.dictation_status)
 
     @property
     def controller(self) -> Optional[STTController]:
@@ -127,7 +132,7 @@ class EngineManager:
 
         # Register callbacks if set
         if self.on_state_change:
-            controller.add_state_listener(self.on_state_change)
+            controller.add_state_listener(self._handle_internal_state_change)
         if self.on_output:
             controller.add_output_listener(self.on_output)
         if self.on_exit:

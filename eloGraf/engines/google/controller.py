@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 from eloGraf.base_controller import StreamingControllerBase
+from eloGraf.status import DictationStatus
 from eloGraf.input_simulator import type_text
 from eloGraf.streaming_runner_base import StreamingRunnerBase
 from .settings import GoogleCloudSettings
@@ -94,6 +95,19 @@ class GoogleCloudSpeechController(StreamingControllerBase[GoogleCloudSpeechState
         model_name = self._settings.model
         language = self._settings.language_code
         return f"Google Cloud | Model: {model_name} | Lang: {language}"
+
+    @property
+    def dictation_status(self) -> DictationStatus:
+        if self.state in (GoogleCloudSpeechState.STARTING, GoogleCloudSpeechState.CONNECTING):
+            return DictationStatus.INITIALIZING
+        elif self.state in (GoogleCloudSpeechState.READY, GoogleCloudSpeechState.RECORDING, GoogleCloudSpeechState.TRANSCRIBING):
+            return DictationStatus.LISTENING
+        elif self.state == GoogleCloudSpeechState.SUSPENDED:
+            return DictationStatus.SUSPENDED
+        elif self.state == GoogleCloudSpeechState.FAILED:
+            return DictationStatus.FAILED
+        else:
+            return DictationStatus.IDLE
 
 
 class GoogleCloudSpeechProcessRunner(StreamingRunnerBase):

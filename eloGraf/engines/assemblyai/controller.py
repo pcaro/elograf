@@ -12,6 +12,7 @@ import requests
 import websocket
 
 from eloGraf.base_controller import StreamingControllerBase
+from eloGraf.status import DictationStatus
 from eloGraf.input_simulator import type_text
 from eloGraf.streaming_runner_base import StreamingRunnerBase
 from .settings import AssemblyAISettings
@@ -94,6 +95,19 @@ class AssemblyAIRealtimeController(StreamingControllerBase[AssemblyAIRealtimeSta
     def get_status_string(self) -> str:
         model_name = self._settings.model
         return f"AssemblyAI | Model: {model_name}"
+
+    @property
+    def dictation_status(self) -> DictationStatus:
+        if self.state in (AssemblyAIRealtimeState.STARTING, AssemblyAIRealtimeState.CONNECTING):
+            return DictationStatus.INITIALIZING
+        elif self.state in (AssemblyAIRealtimeState.READY, AssemblyAIRealtimeState.RECORDING, AssemblyAIRealtimeState.TRANSCRIBING):
+            return DictationStatus.LISTENING
+        elif self.state == AssemblyAIRealtimeState.SUSPENDED:
+            return DictationStatus.SUSPENDED
+        elif self.state == AssemblyAIRealtimeState.FAILED:
+            return DictationStatus.FAILED
+        else:
+            return DictationStatus.IDLE
 
 
 class AssemblyAIRealtimeProcessRunner(StreamingRunnerBase):
