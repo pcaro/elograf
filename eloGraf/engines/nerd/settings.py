@@ -18,18 +18,6 @@ class NerdSettings(EngineSettings):
         metadata={"hidden": True}
     )
 
-    device_name: str = field(
-        default="default",
-        metadata={
-            "label": "Pulse device name",
-            "widget": "text",
-            "tooltip": (
-                "The name of the pulse-audio device to use for recording. \n"
-                "See the output of \"pactl list sources\" to find device names (using the identifier following \"Name:\")"
-            ),
-        }
-    )
-
     sample_rate: int = field(
         default=44100,
         metadata={

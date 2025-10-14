@@ -428,10 +428,116 @@ class SystemTrayIcon(QSystemTrayIcon):
         adv_window.resumeShortcut.setKeySequence(self.settings.resumeShortcut)
 
         # Set STT engine and initial tab
-        adv_window.ui.stt_engine_cb.setCurrentText(self.settings.sttEngine)
-        adv_window._on_stt_engine_changed(self.settings.sttEngine)
+        index = adv_window.ui.stt_engine_cb.findData(self.settings.sttEngine)
+        if index >= 0:
+            adv_window.ui.stt_engine_cb.setCurrentIndex(index)
+            adv_window._on_stt_engine_changed(index)
 
-        if adv_window.exec():
+        # Custom handling for dialog result with validation
+        while True:
+            if not adv_window.exec():
+                return  # User clicked Cancel
+
+            # User clicked OK - run validation
+            from eloGraf.ui_generator import (
+                validate_settings_from_tab,
+                apply_validation_warnings,
+                clear_validation_warnings
+            )
+
+            # Get current engine
+            engine_data = adv_window.ui.stt_engine_cb.currentData()
+            current_engine = engine_data if engine_data else "nerd-dictation"
+
+            # Validate General tab
+            from eloGraf.validators import validate_command_exists
+
+            general_warnings = {}
+            precommand_value = adv_window.ui.precommand.text()
+            precommand_warning = validate_command_exists(precommand_value)
+            if precommand_warning:
+                general_warnings['precommand'] = precommand_warning
+
+            postcommand_value = adv_window.ui.postcommand.text()
+            postcommand_warning = validate_command_exists(postcommand_value)
+            if postcommand_warning:
+                general_warnings['postcommand'] = postcommand_warning
+
+            # Validate current engine tab
+            engine_tab = adv_window.engine_tabs.get(current_engine)
+            engine_class = adv_window.engine_settings_classes.get(current_engine)
+
+            engine_warnings = {}
+            if engine_tab and engine_class:
+                engine_warnings = validate_settings_from_tab(engine_tab, engine_class)
+
+            # If no warnings, save and exit
+            if not general_warnings and not engine_warnings:
+                break
+
+            # Show warnings visually
+            if general_warnings:
+                # Apply warnings to General tab fields
+                for field_name, warning_message in general_warnings.items():
+                    if field_name == 'precommand':
+                        widget = adv_window.ui.precommand
+                    elif field_name == 'postcommand':
+                        widget = adv_window.ui.postcommand
+                    else:
+                        continue
+
+                    widget.setStyleSheet("border: 2px solid red;")
+                    original_tooltip = widget.toolTip()
+                    warning_tooltip = f"⚠️ {warning_message}"
+                    if original_tooltip:
+                        warning_tooltip = f"{original_tooltip}\n\n{warning_tooltip}"
+                    widget.setToolTip(warning_tooltip)
+
+                # Add warning icon to General tab
+                general_tab_index = adv_window.ui.tabWidget.indexOf(adv_window.ui.general_tab)
+                if general_tab_index >= 0:
+                    tab_text = adv_window.ui.tabWidget.tabText(general_tab_index)
+                    if not tab_text.startswith("⚠️ "):
+                        adv_window.ui.tabWidget.setTabText(general_tab_index, f"⚠️ {tab_text}")
+
+            if engine_warnings:
+                apply_validation_warnings(engine_tab, engine_warnings)
+                adv_window.add_tab_warning_icon(engine_tab, True)
+
+            # Ask user if they want to save anyway
+            if adv_window.show_validation_warnings_dialog(
+                general_warnings, engine_warnings, current_engine
+            ):
+                # User chose "Save Anyway" - clear warnings and proceed
+                if general_warnings:
+                    # Clear General tab warnings
+                    for field_name in general_warnings.keys():
+                        if field_name == 'precommand':
+                            widget = adv_window.ui.precommand
+                        elif field_name == 'postcommand':
+                            widget = adv_window.ui.postcommand
+                        else:
+                            continue
+
+                        widget.setStyleSheet("")
+                        widget.setToolTip("")  # Clear tooltip
+
+                    # Remove warning icon from General tab
+                    general_tab_index = adv_window.ui.tabWidget.indexOf(adv_window.ui.general_tab)
+                    if general_tab_index >= 0:
+                        tab_text = adv_window.ui.tabWidget.tabText(general_tab_index)
+                        if tab_text.startswith("⚠️ "):
+                            adv_window.ui.tabWidget.setTabText(general_tab_index, tab_text[3:])
+
+                if engine_warnings:
+                    clear_validation_warnings(engine_tab, engine_class)
+                    adv_window.add_tab_warning_icon(engine_tab, False)
+                break
+
+            # User chose "Cancel" - warnings stay visible, loop back to show dialog again
+
+        # Save settings (only reached if validation passed or user clicked "Save Anyway")
+        if True:  # Keep indentation consistent
             # General settings
             self.settings.precommand = adv_window.ui.precommand.text()
             self.settings.postcommand = adv_window.ui.postcommand.text()
@@ -450,7 +556,8 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.settings.resumeShortcut = adv_window.resumeShortcut.keySequence().toString()
 
             # STT Engine
-            self.settings.sttEngine = adv_window.ui.stt_engine_cb.currentText()
+            engine_data = adv_window.ui.stt_engine_cb.currentData()
+            self.settings.sttEngine = engine_data if engine_data else "nerd-dictation"
 
             # Engine-specific settings from dynamic tabs
             from eloGraf.engine_settings_registry import get_all_engine_ids

@@ -4,14 +4,135 @@
 from __future__ import annotations
 
 import io
+import json
 import logging
 import shutil
 import sys
 from abc import ABC, abstractmethod
-from subprocess import PIPE, Popen
-from typing import List, Optional
+from subprocess import PIPE, Popen, run
+from typing import List, Optional, Tuple
 
 import wave
+
+
+def _get_pulseaudio_sources() -> List[Tuple[str, str]]:
+    """Get available PulseAudio source devices.
+
+    Tries JSON format first (newer pactl), then falls back to text parsing,
+    and finally to `pactl list sources short`.
+
+    Returns:
+        List of tuples (device_name, description)
+    """
+    # Try JSON output for robust parsing
+    try:
+        result = run(["pactl", "-f", "json", "list", "sources"], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0 and result.stdout.strip():
+            try:
+                data = json.loads(result.stdout)
+                sources: List[Tuple[str, str]] = []
+                for src in data or []:
+                    name = src.get("name") or ""
+                    props = src.get("properties", {}) or {}
+                    desc = props.get("node.description") or props.get("device.description") or name
+                    if name:
+                        if name.endswith(".monitor") and "monitor" not in desc.lower():
+                            desc = f"{desc} (monitor)"
+                        sources.append((name, desc))
+                if sources:
+                    return sources
+            except json.JSONDecodeError:
+                pass
+    except Exception as exc:
+        logging.debug("pactl json parse failed: %s", exc)
+
+    # Fallback to text parsing of `pactl list sources`
+    try:
+        result = run(["pactl", "list", "sources"], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0 and result.stdout:
+            sources: List[Tuple[str, str]] = []
+            current_name: Optional[str] = None
+            current_desc: Optional[str] = None
+            props_mode = False
+            for raw in result.stdout.splitlines():
+                line = raw.strip()
+                if line.startswith("Source #"):
+                    if current_name and current_desc:
+                        if current_name.endswith(".monitor") and "monitor" not in current_desc.lower():
+                            current_desc = f"{current_desc} (monitor)"
+                        sources.append((current_name, current_desc))
+                    current_name, current_desc = None, None
+                    props_mode = False
+                elif line.startswith("Name:"):
+                    current_name = line.split(":", 1)[1].strip()
+                elif line.startswith("Description:"):
+                    current_desc = line.split(":", 1)[1].strip()
+                elif line.startswith("Properties:"):
+                    props_mode = True
+                elif props_mode and "node.description" in line and "=" in line and not current_desc:
+                    try:
+                        current_desc = line.split("=", 1)[1].strip().strip('"')
+                    except Exception:
+                        pass
+            if current_name and current_desc:
+                if current_name.endswith(".monitor") and "monitor" not in current_desc.lower():
+                    current_desc = f"{current_desc} (monitor)"
+                sources.append((current_name, current_desc))
+            if sources:
+                return sources
+    except Exception as exc:
+        logging.debug("pactl list sources parse failed: %s", exc)
+
+    # Last resort: short listing
+    try:
+        result = run(["pactl", "list", "sources", "short"], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0 and result.stdout:
+            sources: List[Tuple[str, str]] = []
+            for line in result.stdout.splitlines():
+                parts = line.split()
+                if len(parts) >= 2:
+                    name = parts[1]
+                    desc = name
+                    if name.endswith(".monitor") and "monitor" not in desc.lower():
+                        desc = f"{desc} (monitor)"
+                    sources.append((name, desc))
+            return sources
+    except Exception as exc:
+        logging.debug("pactl short parse failed: %s", exc)
+
+    return []
+
+
+def get_audio_devices(backend: str = "auto") -> List[Tuple[str, str]]:
+    """Get available audio input devices for the specified backend.
+
+    Args:
+        backend: Audio backend to query - "parec", "pyaudio", or "auto"
+
+    Returns:
+        List of tuples (device_value, display_name). Always includes
+        ("default", "Default") as the first option. For parec backend
+        with PulseAudio available, includes additional device choices.
+    """
+    devices: List[Tuple[str, str]] = [("default", "Default")]
+
+    # Determine actual backend if auto
+    if backend == "auto":
+        if sys.platform == "linux" and shutil.which("pactl"):
+            backend = "parec"
+        else:
+            backend = "pyaudio"
+
+    # PyAudio doesn't support device selection, return only default
+    if backend == "pyaudio":
+        return devices
+
+    # For parec backend, try to get PulseAudio devices
+    if backend == "parec":
+        sources = _get_pulseaudio_sources()
+        devices.extend(sources)
+
+    return devices
 
 
 class AudioBackend(ABC):

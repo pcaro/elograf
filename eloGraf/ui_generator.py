@@ -4,8 +4,9 @@
 from __future__ import annotations
 
 import dataclasses
+import importlib
 import typing
-from typing import Any, Type, get_type_hints
+from typing import Any, Callable, List, Tuple, Type, get_type_hints
 from dataclasses import Field
 from PyQt6.QtWidgets import (
     QWidget,
@@ -20,6 +21,54 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 from PyQt6.QtCore import Qt
+
+
+def _load_function_from_string(function_path: str) -> Callable:
+    """Dynamically load a function from a string path.
+
+    Args:
+        function_path: Full path to function (e.g., "module.submodule.function_name")
+
+    Returns:
+        The loaded function
+
+    Raises:
+        ImportError: If module cannot be imported
+        AttributeError: If function doesn't exist in module
+    """
+    parts = function_path.rsplit(".", 1)
+    if len(parts) != 2:
+        raise ValueError(f"Invalid function path: {function_path}")
+
+    module_path, function_name = parts
+    module = importlib.import_module(module_path)
+    return getattr(module, function_name)
+
+
+def _populate_dropdown_from_function(
+    combo: QComboBox,
+    function_path: str,
+    kwargs: dict | None = None
+) -> None:
+    """Populate a QComboBox from a dynamic choices function.
+
+    Args:
+        combo: QComboBox to populate
+        function_path: String path to function returning List[Tuple[value, display]]
+        kwargs: Optional kwargs to pass to the function
+    """
+    try:
+        choices_function = _load_function_from_string(function_path)
+        kwargs = kwargs or {}
+        choices: List[Tuple[str, str]] = choices_function(**kwargs)
+
+        combo.clear()
+        for value, display in choices:
+            combo.addItem(display, value)
+    except Exception as e:
+        # On error, add an error item so user knows something went wrong
+        combo.clear()
+        combo.addItem(f"Error loading choices: {e}", "")
 
 
 def create_widget_from_field(field: Field, value: Any) -> QWidget:
@@ -60,16 +109,67 @@ def create_widget_from_field(field: Field, value: Any) -> QWidget:
         return widget
 
     elif widget_type == "dropdown":
-        widget = QComboBox()
-        options = metadata.get("options", [])
-        for option in options:
-            widget.addItem(option)
+        choices_function = metadata.get("choices_function")
+        refreshable = metadata.get("refreshable", False)
+
+        # Create the combo box
+        combo = QComboBox()
+
+        # Populate choices
+        if choices_function:
+            # Use dynamic function-based choices
+            choices_kwargs = metadata.get("choices_function_kwargs", {})
+            _populate_dropdown_from_function(combo, choices_function, choices_kwargs)
+        else:
+            # Use static options from metadata
+            options = metadata.get("options", [])
+            for option in options:
+                combo.addItem(option)
+
         # Set current value
-        if value in options:
-            widget.setCurrentText(value)
+        if value is not None:
+            # Find item by data (value) not by text
+            index = combo.findData(value)
+            if index >= 0:
+                combo.setCurrentIndex(index)
+            elif not choices_function:
+                # Fallback to text matching for old-style static options
+                index = combo.findText(value)
+                if index >= 0:
+                    combo.setCurrentIndex(index)
+
         if "tooltip" in metadata:
-            widget.setToolTip(metadata["tooltip"])
-        return widget
+            combo.setToolTip(metadata["tooltip"])
+
+        # If refreshable, wrap in container with refresh button
+        if refreshable and choices_function:
+            container = QWidget()
+            layout = QHBoxLayout(container)
+            layout.setContentsMargins(0, 0, 0, 0)
+
+            refresh_button = QPushButton("🔄")
+            refresh_button.setMaximumWidth(40)
+
+            # Connect refresh button to reload choices
+            def on_refresh():
+                current_value = combo.currentData()
+                _populate_dropdown_from_function(combo, choices_function, choices_kwargs)
+                # Try to restore selection
+                index = combo.findData(current_value)
+                if index >= 0:
+                    combo.setCurrentIndex(index)
+
+            refresh_button.clicked.connect(on_refresh)
+
+            layout.addWidget(combo)
+            layout.addWidget(refresh_button)
+
+            # Store combo reference for reading values later
+            container.combo = combo  # type: ignore
+
+            return container
+        else:
+            return combo
 
     elif widget_type == "slider":
         container = QWidget()
@@ -228,8 +328,13 @@ def read_settings_from_tab(tab: QWidget, settings_class: Type) -> Any:
                 values[field.name] = widget.isChecked()
 
         elif widget_type == "dropdown":
-            if isinstance(widget, QComboBox):
-                values[field.name] = widget.currentText()
+            # Check if it's a refreshable container or direct combo box
+            if hasattr(widget, 'combo'):
+                # Refreshable container widget
+                values[field.name] = widget.combo.currentData() or widget.combo.currentText()
+            elif isinstance(widget, QComboBox):
+                # Direct combo box - try currentData first, fallback to currentText
+                values[field.name] = widget.currentData() or widget.currentText()
 
         elif widget_type == "slider":
             # Widget is a container with slider attribute
@@ -237,3 +342,135 @@ def read_settings_from_tab(tab: QWidget, settings_class: Type) -> Any:
                 values[field.name] = widget.slider.value()
 
     return settings_class(**values)
+
+
+def _get_widget_value(widget: QWidget, field: dataclasses.Field) -> Any:
+    """Extract current value from a widget based on its type.
+
+    Args:
+        widget: The widget to extract value from
+        field: The dataclass field (for type information)
+
+    Returns:
+        Current value from the widget
+    """
+    widget_type = field.metadata.get("widget", "text")
+
+    if widget_type in ("text", "password"):
+        if isinstance(widget, QLineEdit):
+            return widget.text()
+
+    elif widget_type == "checkbox":
+        if isinstance(widget, QCheckBox):
+            return widget.isChecked()
+
+    elif widget_type == "dropdown":
+        # Check if it's a refreshable container or direct combo box
+        if hasattr(widget, 'combo'):
+            return widget.combo.currentData() or widget.combo.currentText()
+        elif isinstance(widget, QComboBox):
+            return widget.currentData() or widget.currentText()
+
+    elif widget_type == "slider":
+        if hasattr(widget, 'slider'):
+            return widget.slider.value()
+
+    return None
+
+
+def validate_settings_from_tab(
+    tab_widget: QWidget,
+    settings_class: Type
+) -> dict[str, str]:
+    """Validate all fields in a settings tab.
+
+    Args:
+        tab_widget: The tab widget containing the settings fields
+        settings_class: The dataclass defining the settings
+
+    Returns:
+        Dictionary mapping field_name -> warning_message for any warnings found
+    """
+    warnings = {}
+
+    for field in dataclasses.fields(settings_class):
+        validate_func_path = field.metadata.get("validate")
+        if not validate_func_path:
+            continue
+
+        try:
+            # Load validator function
+            validate_func = _load_function_from_string(validate_func_path)
+
+            # Get current value from widget
+            widget = getattr(tab_widget, "widgets_map", {}).get(field.name)
+            if not widget:
+                continue
+
+            value = _get_widget_value(widget, field)
+
+            # Run validation
+            warning = validate_func(value)
+            if warning:
+                warnings[field.name] = warning
+
+        except Exception as e:
+            # Log error but don't block validation of other fields
+            import logging
+            logging.warning(f"Validation error for field {field.name}: {e}")
+
+    return warnings
+
+
+def apply_validation_warnings(
+    tab_widget: QWidget,
+    warnings: dict[str, str]
+) -> None:
+    """Apply visual feedback for validation warnings.
+
+    Args:
+        tab_widget: The tab containing fields with warnings
+        warnings: Dictionary of field_name -> warning_message
+    """
+    for field_name, warning_message in warnings.items():
+        widget = getattr(tab_widget, "widgets_map", {}).get(field_name)
+        if not widget:
+            continue
+
+        # Get the actual input widget (handle refreshable containers)
+        input_widget = widget.combo if hasattr(widget, 'combo') else widget
+
+        # Apply red border
+        input_widget.setStyleSheet("border: 2px solid red;")
+
+        # Set tooltip with warning
+        original_tooltip = input_widget.toolTip()
+        warning_tooltip = f"⚠️ {warning_message}"
+        if original_tooltip:
+            warning_tooltip = f"{original_tooltip}\n\n{warning_tooltip}"
+        input_widget.setToolTip(warning_tooltip)
+
+
+def clear_validation_warnings(
+    tab_widget: QWidget,
+    settings_class: Type
+) -> None:
+    """Clear all validation warning visuals from a tab.
+
+    Args:
+        tab_widget: The tab to clear warnings from
+        settings_class: The dataclass defining the settings
+    """
+    for field in dataclasses.fields(settings_class):
+        widget = getattr(tab_widget, "widgets_map", {}).get(field.name)
+        if not widget:
+            continue
+
+        input_widget = widget.combo if hasattr(widget, 'combo') else widget
+
+        # Clear custom stylesheet
+        input_widget.setStyleSheet("")
+
+        # Restore original tooltip from metadata
+        original_tooltip = field.metadata.get("tooltip", "")
+        input_widget.setToolTip(original_tooltip)

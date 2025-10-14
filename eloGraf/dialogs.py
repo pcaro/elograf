@@ -15,8 +15,6 @@ import urllib.error
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from subprocess import run
-import json
 from PyQt6.QtCore import QDir
 from PyQt6.QtWidgets import (
     QDialog,
@@ -25,6 +23,8 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QWidget,
+    QHBoxLayout,
+    QComboBox,
 )
 
 import eloGraf.advanced as advanced  # type: ignore
@@ -36,95 +36,7 @@ from eloGraf.engine_settings_registry import (
     get_engine_display_name,
 )
 from eloGraf.engines.nerd.ui.dialogs import launch_model_selection_dialog
-
-def get_pulseaudio_sources() -> List[Tuple[str, str]]:
-    """Get available PulseAudio source devices.
-
-    Tries JSON format first (newer pactl), then falls back to text parsing,
-    and finally to `pactl list sources short`.
-
-    Returns:
-        List of tuples (device_name, description)
-    """
-    # Try JSON output for robust parsing
-    try:
-        result = run(["pactl", "-f", "json", "list", "sources"], capture_output=True, text=True, timeout=5)
-        if result.returncode == 0 and result.stdout.strip():
-            try:
-                data = json.loads(result.stdout)
-                sources: List[Tuple[str, str]] = []
-                for src in data or []:
-                    name = src.get("name") or ""
-                    props = src.get("properties", {}) or {}
-                    desc = props.get("node.description") or props.get("device.description") or name
-                    if name:
-                        if name.endswith(".monitor") and "monitor" not in desc.lower():
-                            desc = f"{desc} (monitor)"
-                        sources.append((name, desc))
-                if sources:
-                    return sources
-            except json.JSONDecodeError:
-                pass
-    except Exception as exc:
-        logging.debug("pactl json parse failed: %s", exc)
-
-    # Fallback to text parsing of `pactl list sources`
-    try:
-        result = run(["pactl", "list", "sources"], capture_output=True, text=True, timeout=5)
-        if result.returncode == 0 and result.stdout:
-            sources: List[Tuple[str, str]] = []
-            current_name: Optional[str] = None
-            current_desc: Optional[str] = None
-            props_mode = False
-            for raw in result.stdout.splitlines():
-                line = raw.strip()
-                if line.startswith("Source #"):
-                    if current_name and current_desc:
-                        if current_name.endswith(".monitor") and "monitor" not in current_desc.lower():
-                            current_desc = f"{current_desc} (monitor)"
-                        sources.append((current_name, current_desc))
-                    current_name, current_desc = None, None
-                    props_mode = False
-                elif line.startswith("Name:"):
-                    current_name = line.split(":", 1)[1].strip()
-                elif line.startswith("Description:"):
-                    current_desc = line.split(":", 1)[1].strip()
-                elif line.startswith("Properties:"):
-                    props_mode = True
-                elif props_mode and "node.description" in line and "=" in line and not current_desc:
-                    # node.description = "..."
-                    try:
-                        current_desc = line.split("=", 1)[1].strip().strip('"')
-                    except Exception:
-                        pass
-            if current_name and current_desc:
-                if current_name.endswith(".monitor") and "monitor" not in current_desc.lower():
-                    current_desc = f"{current_desc} (monitor)"
-                sources.append((current_name, current_desc))
-            if sources:
-                return sources
-    except Exception as exc:
-        logging.debug("pactl list sources parse failed: %s", exc)
-
-    # Last resort: short listing
-    try:
-        result = run(["pactl", "list", "sources", "short"], capture_output=True, text=True, timeout=5)
-        if result.returncode == 0 and result.stdout:
-            sources: List[Tuple[str, str]] = []
-            for line in result.stdout.splitlines():
-                parts = line.split()  # index, name, driver, format, state
-                if len(parts) >= 2:
-                    name = parts[1]
-                    desc = name
-                    if name.endswith(".monitor") and "monitor" not in desc.lower():
-                        desc = f"{desc} (monitor)"
-                    sources.append((name, desc))
-            return sources
-    except Exception as exc:
-        logging.debug("pactl short parse failed: %s", exc)
-
-    return []
-
+from eloGraf.audio_recorder import get_audio_devices
 
 from eloGraf.settings import Settings
 
@@ -146,7 +58,7 @@ class AdvancedUI(QDialog):
         # Update engine dropdown to include all registered engines
         self._populate_engine_dropdown()
 
-        self.ui.stt_engine_cb.currentTextChanged.connect(self._on_stt_engine_changed)
+        self.ui.stt_engine_cb.currentIndexChanged.connect(self._on_stt_engine_changed)
 
 
     def _generate_engine_tabs(self) -> None:
@@ -193,10 +105,10 @@ class AdvancedUI(QDialog):
         # Clear existing items
         self.ui.stt_engine_cb.clear()
 
-        # Add all registered engines
+        # Add all registered engines with display names
         for engine_id in get_all_engine_ids():
             display_name = get_engine_display_name(engine_id)
-            self.ui.stt_engine_cb.addItem(engine_id)
+            self.ui.stt_engine_cb.addItem(display_name, engine_id)
 
     def get_engine_settings_dataclass(self, engine_id: str):
         """Return dataclass instance built from the current tab values."""
@@ -218,8 +130,13 @@ class AdvancedUI(QDialog):
         if isinstance(path_widget, QLineEdit):
             path_widget.setText(location)
 
-    def _on_stt_engine_changed(self, engine: str):
+    def _on_stt_engine_changed(self, _index: int):
         """Handle engine selection change."""
+        # Get engine ID from dropdown data
+        engine = self.ui.stt_engine_cb.currentData()
+        if not engine:
+            return
+
         # Switch to the appropriate tab
         if engine in self.engine_tabs:
             self.ui.tabWidget.setCurrentWidget(self.engine_tabs[engine])
@@ -269,11 +186,116 @@ class AdvancedUI(QDialog):
 
 
     def _populate_audio_devices(self) -> None:
-        """Populate the device name combo box with available PulseAudio sources."""
-        sources = get_pulseaudio_sources()
-        self.ui.deviceName.clear()
-        self.ui.deviceName.addItem("default", "default")
+        """Populate the device name combo box with available audio devices and add refresh button."""
+        # Get the layout where deviceName is located
+        layout = self.ui.general_grid_layout
 
-        for device_name, description in sources:
-            display_text = f"{description} ({device_name})"
-            self.ui.deviceName.addItem(display_text, device_name)
+        # Find the deviceName combobox row
+        device_combo = self.ui.deviceName
+
+        # Populate initial devices
+        self._refresh_audio_devices()
+
+        # Create refresh button
+        refresh_button = QPushButton("🔄")
+        refresh_button.setMaximumWidth(40)
+        refresh_button.setToolTip("Refresh audio device list")
+        refresh_button.clicked.connect(self._refresh_audio_devices)
+
+        # Add refresh button next to the combobox (row 3, column 2)
+        layout.addWidget(refresh_button, 3, 2, 1, 1)
+
+    def _refresh_audio_devices(self) -> None:
+        """Refresh the audio devices list in the dropdown."""
+        devices = get_audio_devices(backend="parec")
+        combo = self.ui.deviceName
+
+        # Save current selection
+        current_value = combo.currentData() or combo.currentText()
+
+        # Repopulate
+        combo.clear()
+        for device_value, display_name in devices:
+            combo.addItem(display_name, device_value)
+
+        # Restore selection if it still exists
+        index = combo.findData(current_value)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+        elif current_value:
+            # Fallback to text matching
+            index = combo.findText(current_value)
+            if index >= 0:
+                combo.setCurrentIndex(index)
+
+    def show_validation_warnings_dialog(
+        self,
+        general_warnings: dict[str, str],
+        engine_warnings: dict[str, str],
+        engine_id: str
+    ) -> bool:
+        """Show dialog with validation warnings and ask user to confirm.
+
+        Args:
+            general_warnings: Warnings from General tab
+            engine_warnings: Warnings from engine tab
+            engine_id: Current engine identifier
+
+        Returns:
+            True if user wants to save anyway, False to go back and fix
+        """
+        from PyQt6.QtWidgets import QMessageBox
+
+        warning_lines = []
+
+        if general_warnings:
+            warning_lines.append("**General Settings:**")
+            for field, message in general_warnings.items():
+                warning_lines.append(f"  • {message}")
+
+        if engine_warnings:
+            engine_name = get_engine_display_name(engine_id)
+            warning_lines.append(f"\n**{engine_name}:**")
+            for field, message in engine_warnings.items():
+                warning_lines.append(f"  • {message}")
+
+        message = (
+            "⚠️ The following warnings were found:\n\n" +
+            "\n".join(warning_lines) +
+            "\n\nDo you want to save anyway?"
+        )
+
+        reply = QMessageBox.warning(
+            self,
+            "Validation Warnings",
+            message,
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel
+        )
+
+        return reply == QMessageBox.StandardButton.Save
+
+    def add_tab_warning_icon(self, tab_widget: QWidget, has_warnings: bool) -> None:
+        """Add or remove warning icon from tab label.
+
+        Args:
+            tab_widget: The tab widget
+            has_warnings: True to add icon, False to remove
+        """
+        tab_index = self.ui.tabWidget.indexOf(tab_widget)
+        if tab_index < 0:
+            return
+
+        original_text = self.ui.tabWidget.tabText(tab_index)
+
+        # Remove existing warning icon if present
+        if original_text.startswith("⚠️ "):
+            original_text = original_text[3:]
+
+        # Add warning icon if needed
+        if has_warnings:
+            new_text = f"⚠️ {original_text}"
+        else:
+            new_text = original_text
+
+        self.ui.tabWidget.setTabText(tab_index, new_text)

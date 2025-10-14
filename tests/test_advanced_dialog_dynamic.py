@@ -21,8 +21,8 @@ def qt_app():
 @pytest.fixture(autouse=True)
 def stub_pulseaudio(monkeypatch):
     monkeypatch.setattr(
-        "eloGraf.dialogs.get_pulseaudio_sources",
-        lambda: [("default", "Default Device")],
+        "eloGraf.audio_recorder.get_audio_devices",
+        lambda backend="auto": [("default", "Default Device")],
     )
 
 
@@ -75,8 +75,12 @@ def test_engine_tab_switching(qt_app):
 
     dialog = AdvancedUI()
 
-    # Simulate selecting whisper-docker engine
-    dialog._on_stt_engine_changed("whisper-docker")
+    # Find whisper-docker in dropdown and set it as current
+    index = dialog.ui.stt_engine_cb.findData("whisper-docker")
+    assert index >= 0, "whisper-docker not found in dropdown"
+
+    dialog.ui.stt_engine_cb.setCurrentIndex(index)
+    dialog._on_stt_engine_changed(index)
 
     # Current tab should be whisper tab
     current_tab = dialog.ui.tabWidget.currentWidget()

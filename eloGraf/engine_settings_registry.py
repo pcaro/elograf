@@ -7,31 +7,38 @@ from typing import Type, Dict, Optional
 import importlib
 
 
-# Mapping of engine identifiers to their settings module paths
-ENGINE_SETTINGS_MODULES: Dict[str, str] = {
-    "nerd-dictation": "eloGraf.engines.nerd.settings",
-    "whisper-docker": "eloGraf.engines.whisper.settings",
-    "google-cloud-speech": "eloGraf.engines.google.settings",
-    "openai-realtime": "eloGraf.engines.openai.settings",
-    "assemblyai": "eloGraf.engines.assemblyai.settings",
-}
-
-# Mapping of engine identifiers to their settings class names
-ENGINE_SETTINGS_CLASSES: Dict[str, str] = {
-    "nerd-dictation": "NerdSettings",
-    "whisper-docker": "WhisperSettings",
-    "google-cloud-speech": "GoogleCloudSettings",
-    "openai-realtime": "OpenAISettings",
-    "assemblyai": "AssemblyAISettings",
-}
-
-# Display names for engines (for tab labels)
-ENGINE_DISPLAY_NAMES: Dict[str, str] = {
-    "nerd-dictation": "Nerd Dictation",
-    "whisper-docker": "Whisper Docker",
-    "google-cloud-speech": "Google Cloud",
-    "openai-realtime": "OpenAI",
-    "assemblyai": "AssemblyAI",
+# Engine registry with metadata for each speech-to-text engine
+ENGINES: Dict[str, Dict[str, str]] = {
+    "nerd-dictation": {
+        "module": "eloGraf.engines.nerd.settings",
+        "class": "NerdSettings",
+        "display_name": "Nerd Dictation",
+    },
+    "whisper-docker": {
+        "module": "eloGraf.engines.whisper.settings",
+        "class": "WhisperSettings",
+        "display_name": "Whisper Docker",
+    },
+    "google-cloud-speech": {
+        "module": "eloGraf.engines.google.settings",
+        "class": "GoogleCloudSettings",
+        "display_name": "Google Cloud",
+    },
+    "openai-realtime": {
+        "module": "eloGraf.engines.openai.settings",
+        "class": "OpenAISettings",
+        "display_name": "OpenAI",
+    },
+    "assemblyai": {
+        "module": "eloGraf.engines.assemblyai.settings",
+        "class": "AssemblyAISettings",
+        "display_name": "AssemblyAI",
+    },
+    "gemini-live": {
+        "module": "eloGraf.engines.gemini.settings",
+        "class": "GeminiSettings",
+        "display_name": "Gemini Live API",
+    },
 }
 
 
@@ -44,8 +51,12 @@ def get_engine_settings_class(engine_id: str) -> Optional[Type]:
     Returns:
         Settings dataclass type, or None if not found
     """
-    module_path = ENGINE_SETTINGS_MODULES.get(engine_id)
-    class_name = ENGINE_SETTINGS_CLASSES.get(engine_id)
+    engine = ENGINES.get(engine_id)
+    if not engine:
+        return None
+
+    module_path = engine.get("module")
+    class_name = engine.get("class")
 
     if not module_path or not class_name:
         return None
@@ -63,7 +74,7 @@ def get_all_engine_ids() -> list[str]:
     Returns:
         List of engine IDs
     """
-    return list(ENGINE_SETTINGS_MODULES.keys())
+    return list(ENGINES.keys())
 
 
 def get_engine_display_name(engine_id: str) -> str:
@@ -75,4 +86,16 @@ def get_engine_display_name(engine_id: str) -> str:
     Returns:
         Human-readable display name
     """
-    return ENGINE_DISPLAY_NAMES.get(engine_id, engine_id)
+    engine = ENGINES.get(engine_id)
+    if engine:
+        return engine.get("display_name", engine_id)
+    return engine_id
+
+
+def get_engine_choices() -> list[tuple[str, str]]:
+    """Get list of (engine_id, display_name) tuples for dropdown widgets.
+
+    Returns:
+        List of tuples: [(engine_id, display_name), ...]
+    """
+    return [(engine_id, get_engine_display_name(engine_id)) for engine_id in get_all_engine_ids()]
