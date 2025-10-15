@@ -40,6 +40,11 @@ class SystemTrayIcon(QSystemTrayIcon):
         if active_controller:
             tooltip_lines.append(active_controller.get_status_string())
 
+        # Add device name if configured
+        device_name = getattr(self.settings, 'deviceName', None)
+        if device_name and device_name != "default":
+            tooltip_lines.append(f"Device: {device_name}")
+
         self.setToolTip("\n".join(tooltip_lines))
 
     def __init__(self, icon: QIcon, start: bool, ipc: IPCManager, parent=None, temporary_engine: str = None) -> None:
@@ -544,8 +549,15 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.settings.env = adv_window.ui.env.text()
             self.settings.tool = adv_window.ui.tool_cb.currentText()
             self.settings.keyboard = adv_window.ui.keyboard_le.text()
-            device_data = adv_window.ui.deviceName.currentData()
+
+            # Save device name - log for debugging
+            current_data = adv_window.ui.deviceName.currentData()
+            current_text = adv_window.ui.deviceName.currentText()
+            logging.info(f"Saving device - currentData: {current_data}, currentText: {current_text}")
+            device_data = current_data or current_text
             self.settings.deviceName = device_data if device_data else "default"
+            logging.info(f"Final deviceName to save: {self.settings.deviceName}")
+
             self.settings.directClick = adv_window.ui.direct_click_cb.isChecked()
 
             # Shortcuts

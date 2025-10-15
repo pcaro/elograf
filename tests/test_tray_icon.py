@@ -179,3 +179,12 @@ def test_toggle_cycles_states(tray, monkeypatch):
     tray_icon.state_machine.set_suspended()
     tray_icon.toggle()
     assert sequence[-1] == "resume"
+
+
+def test_tooltip_includes_device_name(tray):
+    tray_icon, _ = tray
+    # Set a specific device name
+    tray_icon.settings.deviceName = "alsa_input.usb-Q2U_Microphone.stereo"
+    tray_icon._update_tooltip()
+    tooltip = tray_icon.toolTip()
+    assert "alsa_input.usb-Q2U_Microphone.stereo" in tooltip
