@@ -34,6 +34,7 @@ class StreamingRunnerBase(STTProcessRunner, ABC):
         self._stop_event = threading.Event()
         self._audio_recorder: Optional[AudioRecorder] = None
         self._failure_exit = False
+        self._audio_detection_logged = False
 
     # ------------------------------------------------------------------
     # STTProcessRunner interface
@@ -65,6 +66,7 @@ class StreamingRunnerBase(STTProcessRunner, ABC):
 
         self._stop_event.clear()
         self._failure_exit = False
+        self._audio_detection_logged = False
         self._runner_thread = threading.Thread(target=self._runner_loop, daemon=True)
         self._runner_thread.start()
         return True
@@ -126,6 +128,9 @@ class StreamingRunnerBase(STTProcessRunner, ABC):
                 if not audio_chunk:
                     continue
 
+                # Log audio detection status on first chunk
+                self._log_first_audio_detection(audio_chunk)
+
                 try:
                     self._process_audio_chunk(audio_chunk)
                 except Exception as exc:  # pragma: no cover - defensive
@@ -155,6 +160,29 @@ class StreamingRunnerBase(STTProcessRunner, ABC):
         method = getattr(self._controller, method_name, None)
         if callable(method):
             method()
+
+    def _log_first_audio_detection(self, audio_chunk: bytes) -> None:
+        """Log whether audio is detected in the first chunk."""
+        if self._audio_detection_logged:
+            return
+
+        self._audio_detection_logged = True
+
+        try:
+            # Extract raw PCM audio from WAV (skip 44-byte header)
+            raw_audio = audio_chunk[44:] if len(audio_chunk) > 44 else audio_chunk
+
+            # Calculate RMS (root mean square) audio level
+            import struct
+            samples = struct.unpack(f"<{len(raw_audio) // 2}h", raw_audio)
+            rms = (sum(s ** 2 for s in samples) / len(samples)) ** 0.5 if samples else 0.0
+
+            if rms > 100:  # Basic threshold to detect any audio
+                logging.info(f"Audio detected: RMS level = {rms:.1f}")
+            else:
+                logging.info(f"No audio detected: RMS level = {rms:.1f}")
+        except Exception as exc:
+            logging.warning(f"Could not check audio level: {exc}")
 
     # ------------------------------------------------------------------
     # Hooks for subclasses
