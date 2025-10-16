@@ -22,12 +22,14 @@ class StreamingRunnerBase(STTProcessRunner, ABC):
         sample_rate: int,
         channels: int,
         chunk_duration: float,
+        device: Optional[str] = None,
         input_simulator: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._controller = controller
         self._sample_rate = sample_rate
         self._channels = channels
         self._chunk_duration = max(chunk_duration, 0.01)
+        self._device = device
         self._input_simulator = input_simulator
 
         self._runner_thread: Optional[threading.Thread] = None
@@ -146,7 +148,11 @@ class StreamingRunnerBase(STTProcessRunner, ABC):
                 self._controller.handle_exit(1)
 
     def _create_audio_recorder(self) -> AudioRecorder:
-        return AudioRecorder(sample_rate=self._sample_rate, channels=self._channels)
+        return AudioRecorder(
+            sample_rate=self._sample_rate,
+            channels=self._channels,
+            device=self._device,
+        )
 
     def _teardown_audio_recorder(self) -> None:
         if self._audio_recorder is not None:

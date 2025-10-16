@@ -127,6 +127,7 @@ class WhisperDockerProcessRunner(StreamingRunnerBase):
         vad_enabled: bool = True,
         vad_threshold: float = 500.0,
         auto_reconnect: bool = True,
+        device: Optional[str] = None,
         input_simulator: Optional[Callable[[str], None]] = None,
     ) -> None:
         super().__init__(
@@ -134,6 +135,7 @@ class WhisperDockerProcessRunner(StreamingRunnerBase):
             sample_rate=sample_rate,
             channels=channels,
             chunk_duration=chunk_duration,
+            device=device,
             input_simulator=input_simulator or type_text,
         )
         self._controller = controller

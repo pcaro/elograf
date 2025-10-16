@@ -130,6 +130,7 @@ class GeminiLiveProcessRunner(StreamingRunnerBase):
             sample_rate=sample_rate,
             channels=channels,
             chunk_duration=chunk_duration,
+            device=pulse_device,
             input_simulator=input_simulator or type_text,
         )
         self._controller = controller
@@ -138,7 +139,6 @@ class GeminiLiveProcessRunner(StreamingRunnerBase):
         self._language_code = language_code
         self._vad_enabled = vad_enabled
         self._vad_threshold = vad_threshold
-        self._pulse_device = pulse_device
         self._input_simulator = input_simulator or type_text
 
         self._audio_queue: Optional[queue.Queue[Optional[bytes]]] = None
@@ -196,15 +196,6 @@ class GeminiLiveProcessRunner(StreamingRunnerBase):
         if self._audio_queue is not None:
             self._controller.set_transcribing()
             self._audio_queue.put(raw_audio)
-
-    def _create_audio_recorder(self):
-        """Create audio recorder with pulse_device if specified."""
-        from eloGraf.engines.openai.controller import AudioRecorder
-        return AudioRecorder(
-            sample_rate=self._sample_rate,
-            channels=self._channels,
-            device=self._pulse_device,
-        )
 
     def _cleanup_connection(self) -> None:
         if self._audio_queue is not None:

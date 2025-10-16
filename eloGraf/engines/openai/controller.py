@@ -141,6 +141,7 @@ class OpenAIRealtimeProcessRunner(StreamingRunnerBase):
             sample_rate=sample_rate,
             channels=channels,
             chunk_duration=chunk_duration,
+            device=pulse_device,
             input_simulator=input_simulator or type_text,
         )
         self._controller = controller
@@ -180,7 +181,6 @@ class OpenAIRealtimeProcessRunner(StreamingRunnerBase):
         self._response_active = False
         self._current_response_id: Optional[str] = None
         self._current_transcript: List[str] = []
-        self._pulse_device = pulse_device
         self._ws_ready = threading.Event()
         self._ws_failure = threading.Event()
 
@@ -225,13 +225,6 @@ class OpenAIRealtimeProcessRunner(StreamingRunnerBase):
         self._ws_ready.clear()
         self._ws_failure.clear()
         self._audio_buffer.clear()
-
-    def _create_audio_recorder(self):
-        return AudioRecorder(
-            sample_rate=self._sample_rate,
-            channels=self._channels,
-            device=self._pulse_device,
-        )
 
     def _process_audio_chunk(self, audio_data: bytes) -> None:
         if self._ws is None or not self._ws_ready.is_set():
@@ -412,87 +405,3 @@ class OpenAIRealtimeProcessRunner(StreamingRunnerBase):
     def _extract_raw_audio(self, wav_data: bytes) -> bytes:
         """Extract raw PCM audio from WAV file (skip 44-byte header)."""
         return wav_data[44:]
-
-class AudioRecorder:
-    """Records audio chunks from the microphone using PulseAudio's parec."""
-
-    def __init__(self, sample_rate: int = 16000, channels: int = 1, device: Optional[str] = None):
-        if shutil.which("parec") is None:
-            raise RuntimeError("parec is required for audio capture. Install pulseaudio-utils or ensure parec is available.")
-
-        self._sample_rate = sample_rate
-        self._channels = channels
-        self._sample_width = 2  # s16le
-        self._device = device
-        self._parec_process: Optional[Popen] = None
-        self._start_parec()
-
-    def _start_parec(self) -> None:
-        command = [
-            "parec",
-            "--format=s16le",
-            f"--rate={self._sample_rate}",
-            f"--channels={self._channels}",
-        ]
-
-        if self._device:
-            command.append(f"--device={self._device}")
-
-        try:
-            self._parec_process = Popen(
-                command,
-                stdout=PIPE,
-                stderr=subprocess.DEVNULL,
-            )
-        except OSError as exc:
-            raise RuntimeError(f"Failed to start parec: {exc}") from exc
-
-        if not self._parec_process.stdout:
-            raise RuntimeError("parec process has no stdout stream")
-
-    def _read_bytes(self, size: int) -> bytes:
-        if not self._parec_process or self._parec_process.stdout is None:
-            raise RuntimeError("parec process is not running")
-
-        data = b""
-        while len(data) < size:
-            chunk = self._parec_process.stdout.read(size - len(data))
-            if not chunk:
-                # parec ended unexpectedly; attempt restart once
-                self._restart_parec()
-                continue
-            data += chunk
-        return data
-
-    def _restart_parec(self) -> None:
-        if self._parec_process:
-            self._parec_process.kill()
-            self._parec_process.wait(timeout=1)
-        self._start_parec()
-
-    def record_chunk(self, duration: float = 0.1) -> bytes:
-        """Record audio for specified duration and return WAV bytes."""
-        import wave
-
-        bytes_needed = int(self._sample_rate * duration) * self._channels * self._sample_width
-        min_bytes = self._sample_rate * self._channels * self._sample_width // 10
-        if bytes_needed < min_bytes:
-            bytes_needed = min_bytes
-        raw_audio = self._read_bytes(bytes_needed)
-
-        wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, 'wb') as wav_file:
-            wav_file.setnchannels(self._channels)
-            wav_file.setsampwidth(self._sample_width)
-            wav_file.setframerate(self._sample_rate)
-            wav_file.writeframes(raw_audio)
-
-        return wav_buffer.getvalue()
-
-    def __del__(self):
-        if hasattr(self, "_parec_process") and self._parec_process:
-            self._parec_process.kill()
-            try:
-                self._parec_process.wait(timeout=1)
-            except Exception:
-                pass

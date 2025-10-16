@@ -126,6 +126,7 @@ class GoogleCloudSpeechProcessRunner(StreamingRunnerBase):
         chunk_duration: float = 0.1,
         vad_enabled: bool = True,
         vad_threshold: float = 500.0,
+        device: Optional[str] = None,
         input_simulator: Optional[Callable[[str], None]] = None,
     ) -> None:
         super().__init__(
@@ -133,6 +134,7 @@ class GoogleCloudSpeechProcessRunner(StreamingRunnerBase):
             sample_rate=sample_rate,
             channels=channels,
             chunk_duration=chunk_duration,
+            device=device,
             input_simulator=input_simulator or type_text,
         )
         self._controller = controller
@@ -316,54 +318,3 @@ class GoogleCloudSpeechProcessRunner(StreamingRunnerBase):
         """Extract raw PCM audio from WAV file (skip 44-byte header)."""
         # WAV header is typically 44 bytes
         return wav_data[44:]
-
-class AudioRecorder:
-    """Records audio chunks from the microphone using pyaudio."""
-
-    def __init__(self, sample_rate: int = 16000, channels: int = 1):
-        try:
-            import pyaudio
-            import wave
-        except ImportError:
-            raise RuntimeError("pyaudio is required for audio recording. Install with: pip install pyaudio")
-
-        self._sample_rate = sample_rate
-        self._channels = channels
-        self._pyaudio = pyaudio.PyAudio()
-        self._format = pyaudio.paInt16
-
-    def record_chunk(self, duration: float = 0.1) -> bytes:
-        """Record audio for specified duration and return WAV bytes."""
-        import wave
-
-        stream = self._pyaudio.open(
-            format=self._format,
-            channels=self._channels,
-            rate=self._sample_rate,
-            input=True,
-            frames_per_buffer=1024,
-        )
-
-        frames = []
-        chunk_count = int(self._sample_rate / 1024 * duration)
-
-        for _ in range(chunk_count):
-            data = stream.read(1024)
-            frames.append(data)
-
-        stream.stop_stream()
-        stream.close()
-
-        # Create WAV file in memory
-        wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, 'wb') as wav_file:
-            wav_file.setnchannels(self._channels)
-            wav_file.setsampwidth(self._pyaudio.get_sample_size(self._format))
-            wav_file.setframerate(self._sample_rate)
-            wav_file.writeframes(b''.join(frames))
-
-        return wav_buffer.getvalue()
-
-    def __del__(self):
-        if hasattr(self, '_pyaudio'):
-            self._pyaudio.terminate()

@@ -146,7 +146,7 @@ def test_runner_configuration():
     assert runner._chunk_duration == 0.2
     assert not runner._vad_enabled
     assert runner._vad_threshold == 1000.0
-    assert runner._pulse_device == "test-device"
+    assert runner._device == "test-device"
 
 
 def test_runner_is_not_running_initially():

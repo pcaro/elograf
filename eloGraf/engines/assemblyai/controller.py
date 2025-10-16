@@ -131,6 +131,7 @@ class AssemblyAIRealtimeProcessRunner(StreamingRunnerBase):
             sample_rate=sample_rate,
             channels=channels,
             chunk_duration=chunk_duration,
+            device=pulse_device,
             input_simulator=input_simulator or type_text,
         )
         self._controller = controller
@@ -138,7 +139,6 @@ class AssemblyAIRealtimeProcessRunner(StreamingRunnerBase):
         self._model = model
         self._language = language
         self._input_simulator = input_simulator or type_text
-        self._pulse_device = pulse_device
         self._ws_thread: Optional[threading.Thread] = None
         self._ws = None
         self._audio_buffer = bytearray()
@@ -282,16 +282,6 @@ class AssemblyAIRealtimeProcessRunner(StreamingRunnerBase):
                 logging.error("Failed to send audio chunk to AssemblyAI: %s", exc)
                 break
         self._controller.set_recording()
-
-    def _create_audio_recorder(self):
-        from eloGraf.audio_recorder import AudioRecorder
-
-        return AudioRecorder(
-            sample_rate=self._sample_rate,
-            channels=self._channels,
-            backend="parec",
-            device=self._pulse_device,
-        )
 
     def _generate_token(self) -> Optional[str]:
         try:
