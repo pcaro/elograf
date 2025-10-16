@@ -179,7 +179,9 @@ uv run elograf
 - Python 3.7+
 - PyQt6 (includes D-Bus support for KDE global shortcuts)
 - ujson
-- pyaudio (for audio recording)
+- AudioRecorder with backends:
+  - parec (PulseAudio utils) - Linux, supports device selection
+  - PyAudio - Cross-platform fallback
 - vosk
 
 **Engine-Specific Dependencies:**
@@ -193,7 +195,7 @@ uv run elograf
 uv pip install -e .
 ```
 
-This installs: `ujson`, `PyQt6`, `vosk`, `pyaudio`, `requests`, `google-cloud-speech`, and `websocket-client`.
+This installs: `ujson`, `PyQt6`, `vosk`, `pyaudio` (optional), `requests`, `google-cloud-speech`, and `websocket-client`.
 
 ---
 
@@ -370,23 +372,23 @@ STTController                    STTProcessRunner
      │                                  │
      ├── WhisperDockerController        ├── WhisperDockerProcessRunner
      │   └── WhisperDockerState         │   ├── Docker container management
-     │                                  │   ├── Audio recording (pyaudio)
+     │                                  │   ├── Audio recording (AudioRecorder)
      │                                  │   ├── REST API client
      │                                  │   └── Voice Activity Detection
      │                                  │
      ├── GoogleCloudSpeechController    ├── GoogleCloudSpeechProcessRunner
      │   └── GoogleCloudSpeechState     │   ├── gRPC streaming client
-     │                                  │   ├── Audio recording (pyaudio)
+     │                                  │   ├── Audio recording (AudioRecorder)
      │                                  │   └── Credentials management
      │                                  │
      ├── OpenAIRealtimeController       ├── OpenAIRealtimeProcessRunner
      │   └── OpenAIRealtimeState        │   ├── WebSocket client
-     │                                  │   ├── Audio recording (pyaudio)
+     │                                  │   ├── Audio recording (AudioRecorder)
      │                                  │   └── Real-time streaming
      │                                  │
      └── AssemblyAIRealtimeController   └── AssemblyAIRealtimeProcessRunner
          └── AssemblyAIRealtimeState        ├── WebSocket client
-                                            ├── Audio recording (pyaudio)
+                                            ├── Audio recording (AudioRecorder)
                                             └── Real-time streaming
 ```
 
@@ -478,7 +480,7 @@ Factory functions for engine creation:
 - REST API communication (POST /asr)
 - Voice Activity Detection (VAD)
 - Automatic reconnection
-- Audio recording with pyaudio
+- Audio recording with AudioRecorder
 
 **`google_cloud_speech_controller.py`**
 - gRPC streaming client
@@ -518,19 +520,27 @@ Persistent configuration using QSettings:
 
 ### Audio Recording
 
-All engines except nerd-dictation use a common `AudioRecorder` class:
+All streaming engines (Whisper, Google Cloud, OpenAI, AssemblyAI) use a unified `AudioRecorder` class with pluggable backends:
 
 ```python
 class AudioRecorder:
-    """Records audio chunks using pyaudio."""
+    """Unified audio recorder with selectable backend."""
 
-    def __init__(self, sample_rate: int, channels: int)
+    def __init__(self, sample_rate: int, channels: int,
+                 backend: str = "auto", device: Optional[str] = None)
     def record_chunk(self, duration: float) -> bytes  # Returns WAV
 ```
 
+**Backends:**
+- **parec** (Linux/PulseAudio): Preferred on Linux, supports device selection
+- **PyAudio**: Cross-platform fallback for other systems
+
+**Features:**
 - Format: PCM16 (16-bit signed integer)
 - Configurable sample rate and channels
 - Returns WAV-formatted audio data
+- Automatic backend detection (prefers parec on Linux)
+- Device selection support (parec backend only)
 
 ### Text Input Simulation
 
