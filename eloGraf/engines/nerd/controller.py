@@ -152,6 +152,8 @@ class NerdDictationProcessRunner(STTProcessRunner):
             logging.warning("nerd-dictation is already running")
             return False
 
+        logging.info(f"[NerdDictation] Starting with command: {' '.join(command)}")
+
         try:
             process = self._process_factory(list(command), env)
         except Exception as exc:
