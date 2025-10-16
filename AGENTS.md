@@ -34,6 +34,14 @@ To ensure consistency and reduce code duplication, the application relies on a s
 **Runner Base Class (`streaming_runner_base.py`)**
 - `StreamingRunnerBase`: A crucial base class for all streaming runners. It correctly implements the main recording loop, thread management, and audio capture logic. Child runners inherit from it and only need to implement the engine-specific logic: `_initialize_connection()`, `_process_audio_chunk()`, and `_cleanup_connection()`.
 
+**Audio Capture (`audio_recorder.py`)**
+- `AudioRecorder`: Unified audio recording with pluggable backends (PyAudio and parec).
+- `PyAudioBackend`: Cross-platform audio capture using PyAudio library.
+- `ParecBackend`: Linux PulseAudio capture via parec subprocess, supports device selection.
+- `get_audio_devices()`: Query available audio input devices for a given backend.
+
+The AudioRecorder automatically selects the best available backend (prefers parec on Linux, falls back to PyAudio) and provides a consistent interface for all streaming engines.
+
 ### Lifecycle Management with EngineManager
 
 `engine_manager.py` manages creation, refresh, and failure recovery:
@@ -131,7 +139,7 @@ docker run -d --name elograf-whisper \
 
 #### Audio Processing Flow
 
-1. **Record**: Captures audio chunks via pyaudio (configurable duration, default 5s)
+1. **Record**: Captures audio chunks via AudioRecorder (configurable duration, default 5s)
 2. **VAD Check**: Calculates RMS audio level, skips if below threshold
 3. **Transcribe**: POSTs WAV file to `/asr` endpoint with parameters
 4. **Simulate**: Types transcribed text using dotool/xdotool
@@ -162,7 +170,7 @@ docker run -d --name elograf-whisper \
 
 - Docker installed and running
 - Network access for initial image download (~2GB)
-- pyaudio for audio recording
+- AudioRecorder (parec or PyAudio) for audio recording
 
 ### 3. Google Cloud Speech-to-Text V2
 
@@ -214,7 +222,7 @@ recognition_config = RecognitionConfig(
 
 #### Audio Format
 
-- **Input**: WAV format from pyaudio
+- **Input**: WAV format from AudioRecorder
 - **Sent**: Raw PCM (skip 44-byte WAV header)
 - **Sample Rate**: 16000 Hz (default)
 - **Channels**: 1 (mono)
@@ -237,7 +245,7 @@ recognition_config = RecognitionConfig(
 - Google Cloud account with Speech-to-Text API enabled
 - Service account credentials JSON file
 - `google-cloud-speech` Python library
-- pyaudio for audio recording
+- AudioRecorder (parec or PyAudio) for audio recording
 
 ### 4. OpenAI Realtime API
 
@@ -293,10 +301,10 @@ The server implements automatic VAD (Voice Activity Detection) which:
 
 #### Audio Data Flow
 
-1. **Capture**: Audio captured from PulseAudio via `parec`
+1. **Capture**: Audio captured via AudioRecorder (using parec backend on Linux)
    - Format: PCM 16-bit, 16kHz, mono
    - Chunks of 200ms (6400 bytes)
-   - Dedicated thread continuously reads from parec
+   - Dedicated thread continuously reads from audio recorder
 
 2. **Send**: Each chunk is sent as an `input_audio_buffer.append` event:
 ```python
@@ -414,7 +422,7 @@ The AssemblyAI integration is implemented in the `elograf/engines/assemblyai/` p
 
 #### Architecture
 
-AssemblyAI exposes a secured WebSocket endpoint that accepts PCM16 audio frames and returns interim/final transcripts. EloGraf wraps the session with two threads: one for the WebSocket client and one for continuous audio capture via `AudioRecorder`.
+AssemblyAI exposes a secured WebSocket endpoint that accepts PCM16 audio frames and returns interim/final transcripts. EloGraf wraps the session with two threads: one for the WebSocket client and one for continuous audio capture via AudioRecorder from `audio_recorder.py`.
 
 - **Authentication**: Either request short-lived streaming tokens via REST or authenticate directly with the API key in the WebSocket headers.
 - **Session lifecycle**: Controller transitions through `STARTING → CONNECTING → READY → RECORDING/TRANSCRIBING` states and handles suspend/resume semantics.
@@ -447,4 +455,43 @@ AssemblyAI exposes a secured WebSocket endpoint that accepts PCM16 audio frames 
 - `websocket-client` Python package
 - Internet connectivity
 - Valid AssemblyAI API key with realtime access enabled
-- PulseAudio input path compatible with `parec`
+- AudioRecorder (parec or PyAudio) for audio recording
+
+## Testing
+
+The project uses pytest for testing. Tests are located in the `tests/` directory.
+
+### Running Tests
+
+Run all tests:
+```bash
+uv run python -m pytest
+```
+
+Run tests with verbose output:
+```bash
+uv run python -m pytest -v
+```
+
+Run tests for a specific engine:
+```bash
+uv run python -m pytest tests/engines/test_nerd.py -v
+uv run python -m pytest tests/engines/test_gemini.py -v
+```
+
+Run tests with coverage:
+```bash
+uv run python -m pytest --cov=eloGraf --cov-report=html
+```
+
+### Test Structure
+
+- `tests/engines/` - Engine-specific tests for each STT implementation
+- `tests/test_*.py` - Core functionality tests (settings, audio, IPC, etc.)
+
+Each engine test typically covers:
+- State transitions
+- Output parsing
+- Process lifecycle management
+- Error handling
+- Configuration application
