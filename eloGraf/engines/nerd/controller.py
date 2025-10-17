@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import select
 from enum import Enum, auto
 from subprocess import PIPE, Popen, STDOUT
@@ -99,8 +100,9 @@ class NerdDictationController(EnumStateController[NerdDictationState]):
         self._stop_requested = False
 
     def get_status_string(self) -> str:
-        model_name = self._settings.model_path
-        return f"Nerd-Dictation | Model: {model_name or 'Not Selected'}"
+        model_path = self._settings.model_path
+        model_name = os.path.basename(model_path) if model_path else 'Not Selected'
+        return f"Nerd-Dictation | Model: {model_name}"
 
     @property
     def dictation_status(self) -> DictationStatus:
@@ -228,6 +230,19 @@ class NerdDictationProcessRunner(STTProcessRunner):
 
     def is_running(self) -> bool:
         return self._process is not None and self._process.poll() is None
+
+    def force_stop(self) -> None:
+        """Forcefully terminate the nerd-dictation process."""
+        if not self.is_running():
+            return
+
+        logging.warning("Forcefully terminating nerd-dictation process")
+        if self._process:
+            try:
+                self._process.terminate()
+            except Exception as exc:
+                logging.error("Failed to terminate nerd-dictation process: %s", exc)
+            self._process = None
 
     @staticmethod
     def _default_factory(command: Sequence[str], env: Optional[Dict[str, str]]) -> Popen:

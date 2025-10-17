@@ -177,3 +177,12 @@ class STTProcessRunner(ABC):
             True if the process is running, False otherwise.
         """
         pass
+
+    @abstractmethod
+    def force_stop(self) -> None:
+        """
+        Forcefully terminate the STT process.
+
+        This method should be used as a last resort when a graceful stop fails.
+        """
+        pass

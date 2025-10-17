@@ -190,6 +190,17 @@ class StreamingRunnerBase(STTProcessRunner, ABC):
         except Exception as exc:
             logging.warning(f"Could not check audio level: {exc}")
 
+    def force_stop(self) -> None:
+        """
+        Forcefully stop the streaming runner.
+
+        For thread-based runners, there is no safe way to forcefully kill the
+        thread. This method is a no-op, relying on the daemon thread to be
+        terminated when the application exits. The stop() method with its
+        timeout is the primary mechanism for stopping.
+        """
+        pass
+
     # ------------------------------------------------------------------
     # Hooks for subclasses
     # ------------------------------------------------------------------

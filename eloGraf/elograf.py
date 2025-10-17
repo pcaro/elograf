@@ -86,20 +86,7 @@ from typing import (
     Optional,
 )
 
-def get_size(start_path=".") -> Tuple[float, str]:
-    total_size: int = 0
-    for dirpath, dirnames, filenames in os.walk(start_path):
-        for f in filenames:
-            fp = os.path.join(dirpath, f)
-            # skip if it is symbolic link
-            if not os.path.islink(fp):
-                total_size += os.path.getsize(fp)
-    total: float = float(total_size)
-    for unit in ("B", "Kb", "Mb", "Gb", "Tb"):
-        if total < 1024:
-            break
-        total /= 1024
-    return total, unit
+
 
 
 

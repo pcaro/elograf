@@ -302,19 +302,11 @@ class EngineManager:
         except Exception as exc:  # pragma: no cover - defensive
             logging.error("Failed to stop STT engine gracefully after timeout: %s", exc)
 
-        force_stop = getattr(self._runner, "force_stop", None)
-        if callable(force_stop):
+        if self._runner:
             try:
-                force_stop()
+                self._runner.force_stop()
             except Exception as exc:  # pragma: no cover - defensive
                 logging.error("Failed to force stop STT engine: %s", exc)
-
-        process = getattr(self._runner, "_process", None)
-        if process and hasattr(process, "terminate"):
-            try:
-                process.terminate()
-            except Exception as exc:  # pragma: no cover - defensive
-                logging.error("Failed to terminate STT engine process: %s", exc)
 
         self._pending_refresh = False
         self._cancel_refresh_timeout()
