@@ -154,35 +154,51 @@ class AdvancedUI(QDialog):
         layout = self.ui.general_grid_layout
         row_count = layout.rowCount()
 
-        label_begin = QLabel(self.tr("Global shortcut: Begin"))
-        label_begin.setToolTip(self.tr("Global keyboard shortcut to begin dictation (KDE only)"))
-        self.beginShortcut = QKeySequenceEdit()
-        layout.addWidget(label_begin, row_count, 0)
-        layout.addWidget(self.beginShortcut, row_count, 1)
+        # Helper to add shortcut with clear button
+        def add_shortcut_row(row: int, label_text: str, tooltip: str) -> QKeySequenceEdit:
+            label = QLabel(self.tr(label_text))
+            label.setToolTip(self.tr(tooltip))
+            shortcut_edit = QKeySequenceEdit()
 
-        label_end = QLabel(self.tr("Global shortcut: End"))
-        label_end.setToolTip(self.tr("Global keyboard shortcut to end dictation (KDE only)"))
-        self.endShortcut = QKeySequenceEdit()
-        layout.addWidget(label_end, row_count + 1, 0)
-        layout.addWidget(self.endShortcut, row_count + 1, 1)
+            clear_button = QPushButton("✕")
+            clear_button.setMaximumWidth(30)
+            clear_button.setToolTip("Clear shortcut")
+            clear_button.clicked.connect(shortcut_edit.clear)
 
-        label_toggle = QLabel(self.tr("Global shortcut: Toggle"))
-        label_toggle.setToolTip(self.tr("Global keyboard shortcut to toggle dictation (KDE only)"))
-        self.toggleShortcut = QKeySequenceEdit()
-        layout.addWidget(label_toggle, row_count + 2, 0)
-        layout.addWidget(self.toggleShortcut, row_count + 2, 1)
+            layout.addWidget(label, row, 0)
+            layout.addWidget(shortcut_edit, row, 1)
+            layout.addWidget(clear_button, row, 2)
+            return shortcut_edit
 
-        label_suspend = QLabel(self.tr("Global shortcut: Suspend"))
-        label_suspend.setToolTip(self.tr("Global keyboard shortcut to suspend dictation (KDE only)"))
-        self.suspendShortcut = QKeySequenceEdit()
-        layout.addWidget(label_suspend, row_count + 3, 0)
-        layout.addWidget(self.suspendShortcut, row_count + 3, 1)
+        self.beginShortcut = add_shortcut_row(
+            row_count,
+            "Global shortcut: Begin",
+            "Global keyboard shortcut to begin dictation (KDE only)"
+        )
 
-        label_resume = QLabel(self.tr("Global shortcut: Resume"))
-        label_resume.setToolTip(self.tr("Global keyboard shortcut to resume dictation (KDE only)"))
-        self.resumeShortcut = QKeySequenceEdit()
-        layout.addWidget(label_resume, row_count + 4, 0)
-        layout.addWidget(self.resumeShortcut, row_count + 4, 1)
+        self.endShortcut = add_shortcut_row(
+            row_count + 1,
+            "Global shortcut: End",
+            "Global keyboard shortcut to end dictation (KDE only)"
+        )
+
+        self.toggleShortcut = add_shortcut_row(
+            row_count + 2,
+            "Global shortcut: Toggle",
+            "Global keyboard shortcut to toggle dictation (KDE only)"
+        )
+
+        self.suspendShortcut = add_shortcut_row(
+            row_count + 3,
+            "Global shortcut: Suspend",
+            "Global keyboard shortcut to suspend dictation (KDE only)"
+        )
+
+        self.resumeShortcut = add_shortcut_row(
+            row_count + 4,
+            "Global shortcut: Resume",
+            "Global keyboard shortcut to resume dictation (KDE only)"
+        )
 
 
     def _populate_audio_devices(self) -> None:
