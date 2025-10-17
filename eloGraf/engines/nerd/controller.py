@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-import os
+from pathlib import Path
 import select
 from enum import Enum, auto
 from subprocess import PIPE, Popen, STDOUT
@@ -101,7 +101,7 @@ class NerdDictationController(EnumStateController[NerdDictationState]):
 
     def get_status_string(self) -> str:
         model_path = self._settings.model_path
-        model_name = os.path.basename(model_path) if model_path else 'Not Selected'
+        model_name = Path(model_path).name if model_path else 'Not Selected'
         return f"Nerd-Dictation | Model: {model_name}"
 
     @property

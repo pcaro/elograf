@@ -117,6 +117,9 @@ class AutoStoppingRunner(STTProcessRunner):
         self.stop_calls += 1
         self.running = False
 
+    def force_stop(self) -> None:
+        self.running = False
+
     def suspend(self) -> None:
         pass
 
@@ -139,6 +142,9 @@ class DummyRunner(STTProcessRunner):
         return True
 
     def stop(self) -> None:
+        self.running = False
+
+    def force_stop(self) -> None:
         self.running = False
 
     def suspend(self) -> None:
@@ -260,6 +266,9 @@ class FakeRunner(STTProcessRunner):
         self.running = False
         self._controller.transition_to("idle")
         self._controller.handle_exit(0)
+
+    def force_stop(self) -> None:
+        self.running = False
 
     def suspend(self) -> None:
         if not self.running:

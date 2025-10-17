@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 
 
-PID_FILE = os.path.expanduser("~/.config/Elograf/elograf.pid")
+PID_FILE = Path.home() / ".config/Elograf/elograf.pid"
 
 
 def write_pid_file() -> str:
-    os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
+    PID_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(PID_FILE, "w", encoding="utf-8") as handle:
         handle.write(str(os.getpid()))
     return PID_FILE
@@ -16,7 +17,7 @@ def write_pid_file() -> str:
 
 def remove_pid_file() -> None:
     try:
-        if os.path.exists(PID_FILE):
-            os.remove(PID_FILE)
+        if PID_FILE.exists():
+            PID_FILE.unlink()
     except Exception as exc:
         logging.warning("Failed to remove PID file: %s", exc)

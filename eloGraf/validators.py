@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Optional
 import shutil
 import os
+from pathlib import Path
 
 
 def validate_command_exists(value: str) -> Optional[str]:
@@ -41,7 +42,7 @@ def validate_file_exists(value: str) -> Optional[str]:
     if not value or not value.strip():
         return None  # Empty is valid
 
-    if not os.path.isfile(value):
+    if not Path(value).is_file():
         return f"File not found: {value}"
 
     return None
@@ -59,7 +60,7 @@ def validate_directory_exists(value: str) -> Optional[str]:
     if not value or not value.strip():
         return None  # Empty is valid
 
-    if not os.path.isdir(value):
+    if not Path(value).is_dir():
         return f"Directory not found: {value}"
 
     return None

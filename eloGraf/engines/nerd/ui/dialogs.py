@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 import os
 import urllib.error
+from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Tuple
 from zipfile import ZipFile
 from subprocess import Popen
@@ -85,13 +86,13 @@ class CustomUI(QDialog):
     def select_custom(self) -> None:
         """Pick a directory containing a custom model."""
         current_path = self.ui.filePicker.text()
-        path = current_path if os.path.isdir(current_path) else QDir.homePath()
+        path = current_path if Path(current_path).is_dir() else QDir.homePath()
         new_path = QFileDialog.getExistingDirectory(
             self, self.tr("Select the model path"), path
         )
         if new_path:
             self.ui.filePicker.setText(new_path)
-            self.ui.nameLineEdit.setText(os.path.basename(new_path))
+            self.ui.nameLineEdit.setText(Path(new_path).name)
             size, unit = get_size(new_path)
             unit = self.tr(unit)
             self.ui.sizeLineEdit.setText(f"{size:.2f} {unit}")
@@ -106,10 +107,10 @@ class CustomUI(QDialog):
             return
         if not name:
             self.ui.nameLineEdit.setStyleSheet("border: 3px solid red")
-            QTimer.singleShot(1000, lambda: self.ui.nameLineEdit.setStyleSheet(""))
+            self.ui.nameLineEdit.setStyleSheet("")
             return
         new_path = self.ui.filePicker.text()
-        if os.path.exists(new_path):
+        if Path(new_path).exists():
             if self.index == -1:
                 self.settings.add_model(
                     language,

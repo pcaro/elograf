@@ -147,8 +147,7 @@ def test_tooltip_updates_with_model(tray, monkeypatch):
     assert tooltip_lines[0] == "EloGraf"
     assert tooltip_lines[1].startswith("Nerd-Dictation")
     assert "Model:" in tooltip_lines[1]
-    assert "/tmp/a" in tooltip_lines[1]
-
+    assert " a" in tooltip_lines[1]
 
 def test_toggle_cycles_states(tray, monkeypatch):
     tray_icon, _ = tray

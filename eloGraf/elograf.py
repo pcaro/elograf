@@ -15,6 +15,7 @@ import urllib.request, urllib.error
 import logging
 import argparse
 import signal
+from pathlib import Path
 from PyQt6.QtGui import QIcon, QStandardItemModel, QStandardItem, QInputMethod
 from PyQt6.QtCore import (
     QCoreApplication,
@@ -197,7 +198,7 @@ def main() -> None:
     app.setDesktopFileName("Elograf")
     # don't close application when closing setting window
     app.setQuitOnLastWindowClosed(False)
-    LOCAL_DIR = os.path.dirname(os.path.realpath(__file__))
+    LOCAL_DIR = Path(__file__).resolve().parent
     locale = QLocale.system().name()
     qtTranslator = QTranslator()
     if qtTranslator.load(
@@ -206,7 +207,7 @@ def main() -> None:
     ):
         app.installTranslator(qtTranslator)
     appTranslator = QTranslator()
-    if appTranslator.load("elograf_" + locale, os.path.join(LOCAL_DIR, "translations")):
+    if appTranslator.load("elograf_" + locale, str(LOCAL_DIR / "translations")):
         app.installTranslator(appTranslator)
 
     # Note: We don't fork() here because Qt applications with D-Bus/system tray
