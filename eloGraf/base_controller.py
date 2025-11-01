@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from enum import Enum
 from typing import Callable, Dict, Generic, List, TypeVar
 
@@ -78,7 +79,9 @@ class EnumStateController(STTController, Generic[StateEnum]):
         key = state.lower()
         mapped = self._state_map.get(key)
         if mapped is None:
-            logging.warning("Unknown state '%s' for %s controller", state, self._engine_name)
+            logging.warning(
+                "Unknown state '%s' for %s controller", state, self._engine_name
+            )
             return
         self._set_state(mapped)
 
@@ -108,18 +111,22 @@ class StreamingControllerBase(EnumStateController[StateEnum]):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._suspended = False
+        self._suspended_lock = threading.Lock()
 
     def suspend_requested(self) -> None:
         """Request suspension of audio processing."""
-        self._suspended = True
+        with self._suspended_lock:
+            self._suspended = True
         self.transition_to("suspended")
 
     def resume_requested(self) -> None:
         """Request resumption of audio processing."""
-        self._suspended = False
+        with self._suspended_lock:
+            self._suspended = False
         self.transition_to("recording")
 
     @property
     def is_suspended(self) -> bool:
         """Check if controller is in suspended state."""
-        return self._suspended
+        with self._suspended_lock:
+            return self._suspended

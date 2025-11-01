@@ -60,7 +60,11 @@ class EngineManager:
         self._user_engine = normalize_engine_name(settings.sttEngine)
         self._fallback_chain = [
             self._user_engine,
-            *[engine for engine in FALLBACK_CHAIN.get(self._user_engine, []) if engine != self._user_engine],
+            *[
+                engine
+                for engine in FALLBACK_CHAIN.get(self._user_engine, [])
+                if engine != self._user_engine
+            ],
         ]
         self._fallback_index = 0
         self._temporary_engine: Optional[str] = None
@@ -74,6 +78,7 @@ class EngineManager:
         self._retry_scheduled = False
         self._pending_refresh = False
         self._refresh_timeout_ms = refresh_timeout_ms
+        self._retry_timer: Optional[QTimer] = None
         self._refresh_timeout_timer: Optional[QTimer] = None
         self._last_stop_callback: Optional[Callable[[], None]] = None
         self._last_poll_timer: Optional[QTimer] = None
@@ -157,6 +162,7 @@ class EngineManager:
             stop_callback: Function to stop running engine
             poll_timer: QTimer used for polling (will be disconnected/reconnected)
         """
+        self._cancel_retry_timer()
         self._retry_scheduled = False
         self._sync_user_engine()
 
@@ -220,7 +226,9 @@ class EngineManager:
         if self.on_refresh_complete:
             self.on_refresh_complete()
 
-    def handle_exit(self, return_code: int, on_fatal_error: Optional[Callable[[], None]] = None) -> None:
+    def handle_exit(
+        self, return_code: int, on_fatal_error: Optional[Callable[[], None]] = None
+    ) -> None:
         """
         Handle engine exit and implement retry logic.
 
@@ -256,7 +264,7 @@ class EngineManager:
 
             if not self._retry_scheduled:
                 self._retry_scheduled = True
-                QTimer.singleShot(delay_ms, lambda: self.refresh_engine())
+                self._start_retry_timer(delay_ms)
 
         else:
             # Success - reset failure counter
@@ -268,6 +276,26 @@ class EngineManager:
                 self.refresh_engine()
             elif self._should_restore_user_engine():
                 self._restore_user_engine()
+
+    def _start_retry_timer(self, delay_ms: int) -> None:
+        """Start or restart the retry timer with proper callback handling."""
+        if not self._retry_timer:
+            self._retry_timer = QTimer()
+            self._retry_timer.setSingleShot(True)
+            self._retry_timer.timeout.connect(self._on_retry_timeout)
+
+        self._retry_timer.start(delay_ms)
+
+    def _cancel_retry_timer(self) -> None:
+        """Stop the retry timer if it is active and clear scheduled flag."""
+        if self._retry_timer and self._retry_timer.isActive():
+            self._retry_timer.stop()
+        self._retry_scheduled = False
+
+    def _on_retry_timeout(self) -> None:
+        """Handle retry timer expiration."""
+        self._retry_scheduled = False
+        self.refresh_engine()
 
     def _start_refresh_timeout(self) -> None:
         """Start (or restart) the safety timer guarding pending refreshes."""
@@ -321,15 +349,24 @@ class EngineManager:
             self._user_engine = configured
             self._fallback_chain = [
                 self._user_engine,
-                *[engine for engine in FALLBACK_CHAIN.get(self._user_engine, []) if engine != self._user_engine],
+                *[
+                    engine
+                    for engine in FALLBACK_CHAIN.get(self._user_engine, [])
+                    if engine != self._user_engine
+                ],
             ]
             if not self._cli_override:
                 self._temporary_engine = None
                 self._fallback_index = 0
             else:
-                if self._temporary_engine and self._temporary_engine not in self._fallback_chain:
+                if (
+                    self._temporary_engine
+                    and self._temporary_engine not in self._fallback_chain
+                ):
                     self._fallback_chain.append(self._temporary_engine)
-                    self._fallback_index = self._fallback_chain.index(self._temporary_engine)
+                    self._fallback_index = self._fallback_chain.index(
+                        self._temporary_engine
+                    )
             self._circuit_open_until = None
 
     def _set_active_engine(self, engine_name: str, *, as_temporary: bool) -> None:
@@ -337,7 +374,9 @@ class EngineManager:
         if normalized not in self._fallback_chain:
             self._fallback_chain.append(normalized)
         self._fallback_index = self._fallback_chain.index(normalized)
-        self._temporary_engine = normalized if as_temporary or normalized != self._user_engine else None
+        self._temporary_engine = (
+            normalized if as_temporary or normalized != self._user_engine else None
+        )
 
     def _next_fallback_engine(self) -> Optional[str]:
         if self._fallback_index + 1 >= len(self._fallback_chain):
@@ -378,8 +417,11 @@ class EngineManager:
         failure_type: FailureType,
         on_fatal_error: Optional[Callable[[], None]],
     ) -> bool:
+        self._cancel_retry_timer()
         self._retry_scheduled = False
-        self._circuit_open_until = datetime.now() + timedelta(seconds=_CIRCUIT_OPEN_SECONDS)
+        self._circuit_open_until = datetime.now() + timedelta(
+            seconds=_CIRCUIT_OPEN_SECONDS
+        )
         fallback = self._next_fallback_engine()
         if fallback:
             logging.warning(
