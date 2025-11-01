@@ -495,3 +495,21 @@ Each engine test typically covers:
 - Process lifecycle management
 - Error handling
 - Configuration application
+
+## Translations
+
+The application interface is available in multiple languages. The translation source files (`.ts`) are located in the `eloGraf/translations/` directory.
+
+### Compiling Translations
+
+To make new or updated translations visible in the application, the `.ts` source files must be compiled into the binary `.qm` format that Qt uses at runtime.
+
+The required tools for this are part of the `pyside6` package, which is included in the development dependencies.
+
+To compile all translation files, run the following command from the root of the project:
+
+```bash
+uv run pyside6-lrelease eloGraf/translations/*.ts
+```
+
+This will generate or update the `.qm` files in the `eloGraf/translations/` directory, making them available to the application.
