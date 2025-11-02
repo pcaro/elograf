@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from unittest.mock import MagicMock
 
 import pytest
 from PyQt6.QtGui import QIcon
@@ -135,13 +136,18 @@ def test_commute_toggles(tray, monkeypatch):
 
 def test_tooltip_updates_with_model(tray, monkeypatch):
     tray_icon, _ = tray
-    monkeypatch.setattr(tray_icon, "currentModel", lambda: ("model-a", "/tmp/a"))
+    # Set engine to nerd-dictation for this test
+    tray_icon.settings.sttEngine = "nerd-dictation"
+    tray_icon.temporary_engine = None
+    controller = tray_icon.dictation_controller
+    if hasattr(controller, "_settings"):
+        controller._settings.model_path = "/tmp/a"  # type: ignore[attr-defined]
     tray_icon._update_tooltip()
-    assert tray_icon.toolTip() == "EloGraf\nModel: model-a"
-    monkeypatch.setattr(tray_icon, "currentModel", lambda: ("", ""))
-    tray_icon._update_tooltip()
-    assert tray_icon.toolTip() == "EloGraf"
-
+    tooltip_lines = tray_icon.toolTip().split("\n")
+    assert tooltip_lines[0] == "EloGraf"
+    assert tooltip_lines[1].startswith("Nerd-Dictation")
+    assert "Model:" in tooltip_lines[1]
+    assert " a" in tooltip_lines[1]
 
 def test_toggle_cycles_states(tray, monkeypatch):
     tray_icon, _ = tray
@@ -172,3 +178,12 @@ def test_toggle_cycles_states(tray, monkeypatch):
     tray_icon.state_machine.set_suspended()
     tray_icon.toggle()
     assert sequence[-1] == "resume"
+
+
+def test_tooltip_includes_device_name(tray):
+    tray_icon, _ = tray
+    # Set a specific device name
+    tray_icon.settings.deviceName = "alsa_input.usb-Q2U_Microphone.stereo"
+    tray_icon._update_tooltip()
+    tooltip = tray_icon.toolTip()
+    assert "alsa_input.usb-Q2U_Microphone.stereo" in tooltip

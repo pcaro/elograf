@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "EloGraf"
-version = "0.7.0"
+version = "0.8.0"
 description = "Utility for launching and configuring nerd-dictation for voice recognition"
 authors = [
     {name = "papoteur", email = "papoteur@mageia.org"}
@@ -21,6 +21,10 @@ dependencies = [
     "ujson",
     "PyQt6",
     "vosk",
+    "pyaudio",
+    "requests",
+    "google-cloud-speech",
+    "websocket-client",
 ]
 
 [project.urls]

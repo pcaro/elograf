@@ -12,10 +12,10 @@ import unittest
 from unittest.mock import patch, MagicMock
 from subprocess import CompletedProcess
 
-from eloGraf.dialogs import get_pulseaudio_sources
+from eloGraf.audio_recorder import get_audio_devices
 
 
-class TestGetPulseAudioSources(unittest.TestCase):
+class TestGetAudioDevices(unittest.TestCase):
     def test_parse_pactl_output(self):
         """Test parsing of pactl list sources output."""
         mock_output = """Source #0
@@ -33,7 +33,7 @@ Source #1
 	Sample Specification: float32le 2ch 48000Hz
 """
 
-        with patch('eloGraf.dialogs.run') as mock_run:
+        with patch('eloGraf.audio_recorder.run') as mock_run:
             mock_run.return_value = CompletedProcess(
                 args=['pactl', 'list', 'sources'],
                 returncode=0,
@@ -41,29 +41,35 @@ Source #1
                 stderr=''
             )
 
-            sources = get_pulseaudio_sources()
+            devices = get_audio_devices(backend="parec")
 
-            self.assertEqual(len(sources), 2)
-            self.assertEqual(sources[0][0], "alsa_output.pci-0000_00_1b.0.analog-stereo.monitor")
-            self.assertEqual(sources[0][1], "Monitor of Built-in Audio Analog Stereo")
-            self.assertEqual(sources[1][0], "alsa_input.pci-0000_00_1b.0.analog-stereo")
-            self.assertEqual(sources[1][1], "Built-in Audio Analog Stereo")
+            # Should have default + 2 devices
+            self.assertEqual(len(devices), 3)
+            self.assertEqual(devices[0][0], "default")
+            self.assertEqual(devices[0][1], "Default")
+            self.assertEqual(devices[1][0], "alsa_output.pci-0000_00_1b.0.analog-stereo.monitor")
+            self.assertEqual(devices[1][1], "Monitor of Built-in Audio Analog Stereo")
+            self.assertEqual(devices[2][0], "alsa_input.pci-0000_00_1b.0.analog-stereo")
+            self.assertEqual(devices[2][1], "Built-in Audio Analog Stereo")
 
     def test_pactl_not_found(self):
         """Test handling when pactl is not installed."""
-        with patch('eloGraf.dialogs.run', side_effect=FileNotFoundError):
-            sources = get_pulseaudio_sources()
-            self.assertEqual(sources, [])
+        with patch('eloGraf.audio_recorder.run', side_effect=FileNotFoundError):
+            devices = get_audio_devices(backend="parec")
+            # Should still have default
+            self.assertEqual(len(devices), 1)
+            self.assertEqual(devices[0][0], "default")
 
     def test_pactl_timeout(self):
         """Test handling when pactl times out."""
-        with patch('eloGraf.dialogs.run', side_effect=TimeoutError):
-            sources = get_pulseaudio_sources()
-            self.assertEqual(sources, [])
+        with patch('eloGraf.audio_recorder.run', side_effect=TimeoutError):
+            devices = get_audio_devices(backend="parec")
+            self.assertEqual(len(devices), 1)
+            self.assertEqual(devices[0][0], "default")
 
     def test_pactl_failure(self):
         """Test handling when pactl returns error."""
-        with patch('eloGraf.dialogs.run') as mock_run:
+        with patch('eloGraf.audio_recorder.run') as mock_run:
             mock_run.return_value = CompletedProcess(
                 args=['pactl', 'list', 'sources'],
                 returncode=1,
@@ -71,12 +77,13 @@ Source #1
                 stderr='Connection failed'
             )
 
-            sources = get_pulseaudio_sources()
-            self.assertEqual(sources, [])
+            devices = get_audio_devices(backend="parec")
+            self.assertEqual(len(devices), 1)
+            self.assertEqual(devices[0][0], "default")
 
     def test_empty_output(self):
         """Test handling of empty pactl output."""
-        with patch('eloGraf.dialogs.run') as mock_run:
+        with patch('eloGraf.audio_recorder.run') as mock_run:
             mock_run.return_value = CompletedProcess(
                 args=['pactl', 'list', 'sources'],
                 returncode=0,
@@ -84,8 +91,9 @@ Source #1
                 stderr=''
             )
 
-            sources = get_pulseaudio_sources()
-            self.assertEqual(sources, [])
+            devices = get_audio_devices(backend="parec")
+            self.assertEqual(len(devices), 1)
+            self.assertEqual(devices[0][0], "default")
 
 
 if __name__ == '__main__':

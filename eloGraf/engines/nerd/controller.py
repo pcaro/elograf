@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 import select
 from enum import Enum, auto
 from subprocess import PIPE, Popen, STDOUT
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
+
+from eloGraf.base_controller import EnumStateController
+from eloGraf.status import DictationStatus
+from eloGraf.stt_engine import STTProcessRunner
+from .settings import NerdSettings
 
 
 class NerdDictationState(Enum):
@@ -23,28 +29,29 @@ OutputListener = Callable[[str], None]
 ExitListener = Callable[[int], None]
 
 
-class NerdDictationController:
+STATE_MAP = {
+    "idle": NerdDictationState.IDLE,
+    "starting": NerdDictationState.STARTING,
+    "loading": NerdDictationState.LOADING,
+    "ready": NerdDictationState.READY,
+    "dictating": NerdDictationState.DICTATING,
+    "suspended": NerdDictationState.SUSPENDED,
+    "stopping": NerdDictationState.STOPPING,
+    "failed": NerdDictationState.FAILED,
+}
+
+
+class NerdDictationController(EnumStateController[NerdDictationState]):
     """Pure controller that interprets nerd-dictation output into states."""
 
-    def __init__(self) -> None:
-        self._state = NerdDictationState.IDLE
-        self._state_listeners: List[StateListener] = []
-        self._output_listeners: List[OutputListener] = []
-        self._exit_listeners: List[ExitListener] = []
+    def __init__(self, settings: NerdSettings) -> None:
+        super().__init__(
+            initial_state=NerdDictationState.IDLE,
+            state_map=STATE_MAP,
+            engine_name="NerdDictation",
+        )
+        self._settings = settings
         self._stop_requested = False
-
-    @property
-    def state(self) -> NerdDictationState:
-        return self._state
-
-    def add_state_listener(self, callback: StateListener) -> None:
-        self._state_listeners.append(callback)
-
-    def add_output_listener(self, callback: OutputListener) -> None:
-        self._output_listeners.append(callback)
-
-    def add_exit_listener(self, callback: ExitListener) -> None:
-        self._exit_listeners.append(callback)
 
     def start(self) -> None:
         self._stop_requested = False
@@ -64,8 +71,7 @@ class NerdDictationController:
 
     def fail_to_start(self) -> None:
         self._stop_requested = False
-        self._set_state(NerdDictationState.FAILED)
-        self._emit_exit(1)
+        super().fail_to_start()
 
     def handle_output(self, line: str) -> None:
         self._emit_output(line)
@@ -93,23 +99,27 @@ class NerdDictationController:
         self._emit_exit(return_code)
         self._stop_requested = False
 
-    def _set_state(self, state: NerdDictationState) -> None:
-        if self._state == state:
-            return
-        self._state = state
-        for listener in self._state_listeners:
-            listener(state)
+    def get_status_string(self) -> str:
+        model_path = self._settings.model_path
+        model_name = Path(model_path).name if model_path else 'Not Selected'
+        return f"Nerd-Dictation | Model: {model_name}"
 
-    def _emit_output(self, line: str) -> None:
-        for listener in self._output_listeners:
-            listener(line)
+    @property
+    def dictation_status(self) -> DictationStatus:
+        # self.state is the internal NerdDictationState
+        if self.state in (NerdDictationState.STARTING, NerdDictationState.LOADING):
+            return DictationStatus.INITIALIZING
+        elif self.state in (NerdDictationState.READY, NerdDictationState.DICTATING):
+            return DictationStatus.LISTENING
+        elif self.state == NerdDictationState.SUSPENDED:
+            return DictationStatus.SUSPENDED
+        elif self.state == NerdDictationState.FAILED:
+            return DictationStatus.FAILED
+        else:
+            return DictationStatus.IDLE
 
-    def _emit_exit(self, return_code: int) -> None:
-        for listener in self._exit_listeners:
-            listener(return_code)
 
-
-class NerdDictationProcessRunner:
+class NerdDictationProcessRunner(STTProcessRunner):
     """Launch nerd-dictation and feed output into the controller."""
 
     def __init__(
@@ -143,6 +153,8 @@ class NerdDictationProcessRunner:
         if self.is_running():
             logging.warning("nerd-dictation is already running")
             return False
+
+        logging.info(f"[NerdDictation] Starting with command: {' '.join(command)}")
 
         try:
             process = self._process_factory(list(command), env)
@@ -218,6 +230,19 @@ class NerdDictationProcessRunner:
 
     def is_running(self) -> bool:
         return self._process is not None and self._process.poll() is None
+
+    def force_stop(self) -> None:
+        """Forcefully terminate the nerd-dictation process."""
+        if not self.is_running():
+            return
+
+        logging.warning("Forcefully terminating nerd-dictation process")
+        if self._process:
+            try:
+                self._process.terminate()
+            except Exception as exc:
+                logging.error("Failed to terminate nerd-dictation process: %s", exc)
+            self._process = None
 
     @staticmethod
     def _default_factory(command: Sequence[str], env: Optional[Dict[str, str]]) -> Popen:

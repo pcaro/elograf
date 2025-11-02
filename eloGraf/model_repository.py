@@ -7,7 +7,7 @@ from typing import Callable, Iterable, List, Tuple
 
 import ujson
 
-MODEL_USER_PATH = Path(os.path.expanduser("~/.config/vosk-models"))
+MODEL_USER_PATH = Path.home() / ".config/vosk-models"
 MODEL_GLOBAL_PATH = Path("/usr/share/vosk-models")
 MODEL_LIST = "model-list.json"
 MODELS_URL = "https://alphacephei.com/vosk/models"
@@ -17,9 +17,9 @@ def get_size(start_path: os.PathLike[str] | str = ".") -> Tuple[float, str]:
     total_size = 0
     for dirpath, _, filenames in os.walk(start_path):
         for filename in filenames:
-            fp = os.path.join(dirpath, filename)
-            if not os.path.islink(fp):
-                total_size += os.path.getsize(fp)
+            fp = Path(dirpath) / filename
+            if not fp.is_symlink():
+                total_size += fp.stat().st_size
     total = float(total_size)
     for unit in ("B", "Kb", "Mb", "Gb", "Tb"):
         if total < 1024:

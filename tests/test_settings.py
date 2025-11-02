@@ -1,8 +1,25 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QSettings
+import os
 
+import pytest
+from PyQt6.QtCore import QSettings
+from PyQt6.QtWidgets import QApplication
+
+from eloGraf.engines.assemblyai.settings import AssemblyAISettings
+from eloGraf.engines.google.settings import GoogleCloudSettings
+from eloGraf.engines.openai.settings import OpenAISettings
+from eloGraf.engines.whisper.settings import WhisperSettings
 from eloGraf.settings import DEFAULT_RATE, Settings
+
+
+@pytest.fixture(scope="module")
+def qt_app():
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([])
+    yield app
 
 
 def _make_backend(tmp_path):
@@ -95,3 +112,85 @@ def test_add_and_remove_model_updates_backend(tmp_path):
     loaded_again = Settings(QSettings(str(path), QSettings.Format.IniFormat))
     loaded_again.load()
     assert loaded_again.models == []
+
+
+def test_settings_get_whisper_engine_settings(qt_app):
+    settings = Settings()
+    settings.sttEngine = "whisper-docker"
+    settings.whisperModel = "large"
+    settings.whisperPort = 9001
+    settings.deviceName = "test-device"
+
+    engine_settings = settings.get_engine_settings()
+
+    assert isinstance(engine_settings, WhisperSettings)
+    assert engine_settings.model == "large"
+    assert engine_settings.port == 9001
+    assert engine_settings.device_name == "test-device"
+
+
+def test_settings_get_google_cloud_engine_settings(qt_app):
+    settings = Settings()
+    settings.sttEngine = "google-cloud"
+    settings.googleCloudModel = "chirp_2"
+    settings.googleCloudProjectId = "test-project"
+    settings.googleCloudLanguageCode = "es-ES"
+
+    engine_settings = settings.get_engine_settings()
+
+    assert isinstance(engine_settings, GoogleCloudSettings)
+    assert engine_settings.model == "chirp_2"
+    assert engine_settings.project_id == "test-project"
+    assert engine_settings.language_code == "es-ES"
+
+
+def test_settings_get_openai_engine_settings(qt_app):
+    settings = Settings()
+    settings.sttEngine = "openai-realtime"
+    settings.openaiModel = "gpt-4o-transcribe"
+    settings.openaiVadThreshold = 0.7
+    settings.openaiLanguage = "fr-FR"
+
+    engine_settings = settings.get_engine_settings()
+
+    assert isinstance(engine_settings, OpenAISettings)
+    assert engine_settings.model == "gpt-4o-transcribe"
+    assert engine_settings.vad_threshold == 0.7
+    assert engine_settings.language == "fr-FR"
+
+
+def test_settings_get_assembly_engine_settings(qt_app):
+    settings = Settings()
+    settings.sttEngine = "assemblyai"
+    settings.assemblyModel = "best"
+    settings.assemblySampleRate = 48000
+    settings.assemblyLanguage = "es"
+
+    engine_settings = settings.get_engine_settings()
+
+    assert isinstance(engine_settings, AssemblyAISettings)
+    assert engine_settings.model == "best"
+    assert engine_settings.sample_rate == 48000
+    assert engine_settings.language == "es"
+
+
+def test_settings_update_from_whisper_dataclass(qt_app):
+    settings = Settings()
+    settings.sttEngine = "whisper-docker"
+
+    new_settings = WhisperSettings(model="large-v2", port=9002, device_name="custom-device")
+
+    settings.update_from_dataclass(new_settings)
+
+    assert settings.whisperModel == "large-v2"
+    assert settings.whisperPort == 9002
+    assert settings.deviceName == "custom-device"
+
+
+def test_settings_validation_via_dataclass(qt_app):
+    settings = Settings()
+    settings.sttEngine = "whisper-docker"
+    settings.whisperPort = 99999
+
+    with pytest.raises(ValueError, match="Invalid port"):
+        settings.get_engine_settings()
