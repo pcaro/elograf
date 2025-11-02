@@ -39,4 +39,5 @@ packages = ["eloGraf"]
 [dependency-groups]
 dev = [
     "pytest>=7.4.4",
+    "pytest-qt>=4.2.0",
 ]
