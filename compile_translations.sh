@@ -1,0 +1,1 @@
+#!/bin/bash\n# Helper script to compile translations\n\nif [ ! -d ".venv/lib/python3.12/site-packages/qt6_applications" ]; then\n    echo "Installing qt6-applications..."\n    uv pip install qt6-applications\nfi\n\n./.venv/lib/python3.12/site-packages/qt6_applications/Qt/bin/lrelease eloGraf/translations/*.ts\necho "Translations compiled."\n
