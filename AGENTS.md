@@ -129,10 +129,29 @@ uv run python -m pytest
 
 The application interface is available in multiple languages. The translation source files (`.ts`) are located in the `eloGraf/translations/` directory.
 
+### Managing Translations
+
+To add a new language or update existing translations:
+
+1. **Extract strings (lupdate):** Run the Qt update tool to extract new translatable strings from the Python source code and `.ui` files into the `.ts` files.
+   ```bash
+   # This will update all existing .ts files with new strings from the code
+   ./.venv/lib/python3.12/site-packages/qt6_applications/Qt/bin/lupdate eloGraf/ -ts eloGraf/translations/*.ts
+   ```
+
+2. **Translate (Qt Linguist):** Use the Qt Linguist application (or any text editor, though Linguist is recommended) to translate the newly extracted strings in the `.ts` files.
+
 ### Compiling Translations
 
-To make new or updated translations visible in the application, the `.ts` source files must be compiled into the binary `.qm` format:
+To make new or updated translations visible in the application, the `.ts` source files must be compiled into the binary `.qm` format.
 
+You can use the provided helper script:
 ```bash
-uv run pyside6-lrelease eloGraf/translations/*.ts
+./compile_translations.sh
+```
+
+Or run the underlying command directly:
+```bash
+uv pip install qt6-applications
+./.venv/lib/python3.12/site-packages/qt6_applications/Qt/bin/lrelease eloGraf/translations/*.ts
 ```
