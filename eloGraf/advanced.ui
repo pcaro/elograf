@@ -163,6 +163,33 @@
            </property>
           </widget>
          </item>
+         <item row="12" column="0">
+          <widget class="QLabel" name="label_13">
+           <property name="toolTip">
+            <string>&lt;b&gt;Input Simulation Tool&lt;/b&gt;&lt;br&gt;Method for typing transcribed text.&lt;br&gt;&lt;br&gt;&lt;b&gt;XDOTOOL:&lt;/b&gt; Simulates X11 keyboard events&lt;br&gt;- More compatible with all applications&lt;br&gt;- Requires xdotool installed&lt;br&gt;&lt;br&gt;&lt;b&gt;DOTOOL:&lt;/b&gt; Uses /dev/uinput directly&lt;br&gt;- Faster and more reliable&lt;br&gt;- Requires root or udev configuration</string>
+           </property>
+           <property name="text">
+            <string>Input simulate tool</string>
+           </property>
+          </widget>
+         </item>
+         <item row="12" column="1">
+          <widget class="QComboBox" name="tool_cb">
+           <property name="currentText">
+            <string>XDOTOOL</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>XDOTOOL</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>DOTOOL</string>
+            </property>
+           </item>
+          </widget>
+         </item>
          <item row="13" column="0">
           <widget class="QLabel" name="label_14">
            <property name="toolTip">
