@@ -140,12 +140,10 @@ def create_widget_from_field(field: Field, value: Any) -> QWidget:
             # Use static options from metadata
             options = metadata.get("options", [])
             for option in options:
-                # Build tooltip for this option if description exists
+                combo.addItem(option, option)
                 if option in option_descriptions:
-                    desc = option_descriptions[option]
-                    combo.addItem(option, desc)
-                else:
-                    combo.addItem(option)
+                    index = combo.count() - 1
+                    combo.setItemData(index, option_descriptions[option], Qt.ItemDataRole.ToolTipRole)
 
         # Set current value
         if value is not None:
