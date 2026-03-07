@@ -92,7 +92,7 @@ def create_widget_from_field(field: Field, value: Any) -> QWidget:
         if "tooltip" in metadata:
             # Style: black text on red background as requested
             tooltip_text = metadata["tooltip"]
-            styled_tooltip = f"<html><body style='color: black; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>"
+            styled_tooltip = f"<html><body style='color: white; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>"
             widget.setToolTip(styled_tooltip)
         return widget
 
@@ -103,7 +103,7 @@ def create_widget_from_field(field: Field, value: Any) -> QWidget:
         if "tooltip" in metadata:
             # Style: black text on red background as requested
             tooltip_text = metadata["tooltip"]
-            styled_tooltip = f"<html><body style='color: black; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>"
+            styled_tooltip = f"<html><body style='color: white; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>"
             widget.setToolTip(styled_tooltip)
         return widget
 
@@ -113,7 +113,7 @@ def create_widget_from_field(field: Field, value: Any) -> QWidget:
         if "tooltip" in metadata:
             # Style: black text on red background as requested
             tooltip_text = metadata["tooltip"]
-            styled_tooltip = f"<html><body style='color: black; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>"
+            styled_tooltip = f"<html><body style='color: white; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>"
             widget.setToolTip(styled_tooltip)
         return widget
 
@@ -156,7 +156,7 @@ def create_widget_from_field(field: Field, value: Any) -> QWidget:
         if "tooltip" in metadata:
             # Style: black text on red background as requested
             tooltip_text = metadata["tooltip"]
-            styled_tooltip = f"<html><body style='color: black; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>"
+            styled_tooltip = f"<html><body style='color: white; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>"
             combo.setToolTip(styled_tooltip)
         elif option_descriptions:
             # Build a dynamic tooltip showing all options with descriptions
@@ -166,7 +166,7 @@ def create_widget_from_field(field: Field, value: Any) -> QWidget:
                 tooltip_parts.append(f"<li><b>{option}:</b> {desc}</li>")
             tooltip_parts.append("</ul>")
             tooltip_html = "\n".join(tooltip_parts)
-            styled_tooltip = f"<html><body style='color: black; background-color: #ff4444; padding: 5px;'>\n{tooltip_html}\n</body></html>"
+            styled_tooltip = f"<html><body style='color: white; background-color: #ff4444; padding: 5px;'>\n{tooltip_html}\n</body></html>"
             combo.setToolTip(styled_tooltip)
 
         # If refreshable, wrap in container with refresh button
@@ -222,7 +222,7 @@ def create_widget_from_field(field: Field, value: Any) -> QWidget:
         if "tooltip" in metadata:
             # Style: black text on red background as requested
             tooltip_text = metadata["tooltip"]
-            styled_tooltip = f"<html><body style='color: black; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>"
+            styled_tooltip = f"<html><body style='color: white; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>"
             slider.setToolTip(styled_tooltip)
 
         # Store references for later value reading
@@ -239,7 +239,7 @@ def create_widget_from_field(field: Field, value: Any) -> QWidget:
         if "tooltip" in metadata:
             # Style: black text on red background as requested
             tooltip_text = metadata["tooltip"]
-            styled_tooltip = f"<html><body style='color: black; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>"
+            styled_tooltip = f"<html><body style='color: white; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>"
             button.setToolTip(styled_tooltip)
         return button
 
@@ -313,7 +313,7 @@ def generate_settings_tab(settings_class: Type, instance: Any | None = None) -> 
                 info_icon.setStyleSheet("color: #3498db; font-weight: bold;")
                 # Style: black text on red background as requested
                 tooltip_text = field.metadata["tooltip"]
-                info_icon.setToolTip(f"<html><body style='color: black; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>")
+                info_icon.setToolTip(f"<html><body style='color: white; background-color: #ff4444; padding: 5px;'>\n{tooltip_text}\n</body></html>")
                 
                 label_layout.addWidget(label)
                 label_layout.addWidget(info_icon)
