@@ -121,6 +121,9 @@ class StreamingRunnerBase(STTProcessRunner, ABC):
 
                 try:
                     audio_chunk = self._audio_recorder.record_chunk(self._chunk_duration)
+                except EOFError:
+                    logging.debug("StreamingRunner: recording closed or stopped")
+                    break
                 except Exception as exc:  # pragma: no cover - defensive
                     logging.error("Audio capture failed: %s", exc)
                     self._controller.emit_error("Audio capture failed")

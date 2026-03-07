@@ -255,6 +255,7 @@ class ParecBackend(AudioBackend):
         self._sample_width = 2  # 16-bit = 2 bytes
         self._device = device
         self._parec: Optional[Popen] = None
+        self._closed = False
         self._start_parec()
 
     def _build_command(self) -> List[str]:
@@ -297,10 +298,22 @@ class ParecBackend(AudioBackend):
 
         data = b""
         while len(data) < size:
+            if getattr(self, "_closed", False):
+                raise EOFError("Audio recording is closed")
+                
             chunk = self._parec.stdout.read(size - len(data))
             if not chunk:
-                # parec died, try to restart
-                logging.warning("parec process ended unexpectedly, restarting")
+                if getattr(self, "_closed", False):
+                    raise EOFError("Audio recording is closed")
+                
+                # Check if it was killed by a signal (e.g. SIGINT from terminal)
+                retcode = self._parec.poll()
+                if retcode is not None and retcode < 0:
+                    logging.debug(f"parec process ended with signal {-retcode}, stopping read.")
+                    raise EOFError("parec process terminated by signal")
+                    
+                # try to restart
+                logging.warning(f"parec process ended unexpectedly (code {retcode}), restarting")
                 self._restart_parec()
                 continue
             data += chunk
@@ -327,7 +340,14 @@ class ParecBackend(AudioBackend):
             bytes_needed = min_bytes
 
         # Read raw audio from parec
-        raw_audio = self._read_bytes(bytes_needed)
+        try:
+            raw_audio = self._read_bytes(bytes_needed)
+        except EOFError as e:
+            # Re-raise to cleanly stop pipeline if closed or signaled
+            raise e
+        except Exception as e:
+            logging.error(f"Error reading from parec: {e}")
+            raise
 
         # Wrap in WAV container
         return self._create_wav(raw_audio)
@@ -344,6 +364,7 @@ class ParecBackend(AudioBackend):
 
     def close(self) -> None:
         """Kill parec subprocess."""
+        self._closed = True
         if hasattr(self, "_parec") and self._parec:
             try:
                 self._parec.kill()

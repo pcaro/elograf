@@ -205,6 +205,9 @@ class AudioPipeline:
                 elif result == VADResult.SPEECH_ONGOING:
                     pass
                 
+            except EOFError:
+                logging.debug("AudioPipeline: recording closed or stopped")
+                break
             except Exception as exc:
                 logging.exception("Error in AudioPipeline loop")
                 time.sleep(0.1)
