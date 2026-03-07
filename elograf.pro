@@ -18,11 +18,6 @@ SOURCES += eloGraf/elograf.py \
 
 HEADERS  +=
 
-FORMS    +=  \
-    eloGraf/confirm.ui \
-    eloGraf/advanced.ui \
-    eloGraf/custom.ui
-
 TRANSLATIONS     += eloGraf/translations/elograf_ca.ts
 TRANSLATIONS     += eloGraf/translations/elograf_cs.ts
 TRANSLATIONS     += eloGraf/translations/elograf_de.ts

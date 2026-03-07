@@ -133,7 +133,7 @@ The application interface is available in multiple languages. The translation so
 
 To add a new language or update existing translations:
 
-1. **Extract strings (lupdate):** Run the Qt update tool to extract new translatable strings from the Python source code and `.ui` files into the `.ts` files.
+1. **Extract strings (lupdate):** Run the Qt update tool to extract new translatable strings from the Python source code into the `.ts` files.
    ```bash
    # This will update all existing .ts files with new strings from the code
    ./.venv/lib/python3.12/site-packages/qt6_applications/Qt/bin/lupdate eloGraf/ -ts eloGraf/translations/*.ts
