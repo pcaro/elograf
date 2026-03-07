@@ -33,10 +33,29 @@ class TextFormatter:
         1. Add punctuation (detect questions)
         2. Capitalize sentences
         3. Format numbers
+        4. Ensure trailing space if sentence ended
         """
+        if not text:
+            return text
+            
         text = self.add_punctuation(text)
         text = self.capitalize_sentences(text)
         text = self.format_numbers(text, self._locale)
+        text = self.ensure_trailing_space(text)
+        return text
+    
+    def ensure_trailing_space(self, text: str) -> str:
+        """Add a trailing space if the text ends with punctuation.
+        
+        Helps separating phrases when emitted sequentially.
+        """
+        if not text:
+            return text
+            
+        # If it ends with punctuation but no space, add it
+        if text[-1] in '.!?' and not text.endswith(' '):
+            return text + ' '
+            
         return text
     
     def capitalize_sentences(self, text: str) -> str:

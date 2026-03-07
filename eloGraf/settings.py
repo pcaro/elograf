@@ -15,6 +15,7 @@ from eloGraf.engines.openai.settings import OpenAISettings
 from eloGraf.engines.assemblyai.settings import AssemblyAISettings
 from eloGraf.engines.gemini.settings import GeminiSettings
 from eloGraf.engines.vosk_local.settings import VoskLocalSettings
+from eloGraf.engines.whisper_local.settings import WhisperLocalSettings
 
 DEFAULT_RATE: int = 44100
 
@@ -103,6 +104,17 @@ class Settings:
         self.voskLocale: str = "en_US"
         self.voskMaxQueueDepth: int = 3
 
+        # Whisper Local settings
+        self.whisperLocalModelSize: str = "base"
+        self.whisperLocalLanguage: str = "auto"
+        self.whisperLocalDevice: str = "auto"
+        self.whisperLocalComputeType: str = "auto"
+        self.whisperLocalVadThreshold: float = 0.5
+        self.whisperLocalContextLimitChars: int = 100
+        self.whisperLocalAutoResetContext: bool = True
+        self.whisperLocalLocale: str = "en_US"
+        self.whisperLocalMaxQueueDepth: int = 2
+
     def load(self) -> None:
         backend = self._backend
         self.precommand = backend.value("Precommand", "", type=str)
@@ -184,6 +196,17 @@ class Settings:
         self.voskTextFormatting = backend.value("VoskTextFormatting", True, type=bool)
         self.voskLocale = backend.value("VoskLocale", "en_US", type=str)
         self.voskMaxQueueDepth = backend.value("VoskMaxQueueDepth", 3, type=int)
+
+        # Whisper Local
+        self.whisperLocalModelSize = backend.value("WhisperLocalModelSize", "base", type=str)
+        self.whisperLocalLanguage = backend.value("WhisperLocalLanguage", "auto", type=str)
+        self.whisperLocalDevice = backend.value("WhisperLocalDevice", "auto", type=str)
+        self.whisperLocalComputeType = backend.value("WhisperLocalComputeType", "auto", type=str)
+        self.whisperLocalVadThreshold = backend.value("WhisperLocalVadThreshold", 0.5, type=float)
+        self.whisperLocalContextLimitChars = backend.value("WhisperLocalContextLimitChars", 100, type=int)
+        self.whisperLocalAutoResetContext = backend.value("WhisperLocalAutoResetContext", True, type=bool)
+        self.whisperLocalLocale = backend.value("WhisperLocalLocale", "en_US", type=str)
+        self.whisperLocalMaxQueueDepth = backend.value("WhisperLocalMaxQueueDepth", 2, type=int)
 
         self.models = []
         count = backend.beginReadArray("Models")
@@ -382,6 +405,41 @@ class Settings:
         else:
             backend.setValue("VoskMaxQueueDepth", self.voskMaxQueueDepth)
 
+        # Whisper Local
+        if self.whisperLocalModelSize == "base":
+            backend.remove("WhisperLocalModelSize")
+        else:
+            backend.setValue("WhisperLocalModelSize", self.whisperLocalModelSize)
+        if self.whisperLocalLanguage == "auto":
+            backend.remove("WhisperLocalLanguage")
+        else:
+            backend.setValue("WhisperLocalLanguage", self.whisperLocalLanguage)
+        if self.whisperLocalDevice == "auto":
+            backend.remove("WhisperLocalDevice")
+        else:
+            backend.setValue("WhisperLocalDevice", self.whisperLocalDevice)
+        if self.whisperLocalComputeType == "auto":
+            backend.remove("WhisperLocalComputeType")
+        else:
+            backend.setValue("WhisperLocalComputeType", self.whisperLocalComputeType)
+        if self.whisperLocalVadThreshold == 0.5:
+            backend.remove("WhisperLocalVadThreshold")
+        else:
+            backend.setValue("WhisperLocalVadThreshold", self.whisperLocalVadThreshold)
+        if self.whisperLocalContextLimitChars == 100:
+            backend.remove("WhisperLocalContextLimitChars")
+        else:
+            backend.setValue("WhisperLocalContextLimitChars", self.whisperLocalContextLimitChars)
+        backend.setValue("WhisperLocalAutoResetContext", int(self.whisperLocalAutoResetContext))
+        if self.whisperLocalLocale == "en_US":
+            backend.remove("WhisperLocalLocale")
+        else:
+            backend.setValue("WhisperLocalLocale", self.whisperLocalLocale)
+        if self.whisperLocalMaxQueueDepth == 2:
+            backend.remove("WhisperLocalMaxQueueDepth")
+        else:
+            backend.setValue("WhisperLocalMaxQueueDepth", self.whisperLocalMaxQueueDepth)
+
         if self.deviceName == "default":
             backend.remove("DeviceName")
         else:
@@ -478,7 +536,7 @@ class Settings:
 
     def get_engine_settings(
         self, engine_type: Optional[str] = None
-    ) -> Union[NerdSettings, WhisperSettings, GoogleCloudSettings, OpenAISettings, AssemblyAISettings, GeminiSettings, VoskLocalSettings, EngineSettings]:
+    ) -> Union[NerdSettings, WhisperSettings, GoogleCloudSettings, OpenAISettings, AssemblyAISettings, GeminiSettings, VoskLocalSettings, WhisperLocalSettings, EngineSettings]:
         """
         Get type-safe engine settings dataclass for the requested engine.
 
@@ -585,13 +643,27 @@ class Settings:
                 locale=self.voskLocale,
                 max_queue_depth=self.voskMaxQueueDepth,
             )
+        if canonical_type == "whisper-local":
+            return WhisperLocalSettings(
+                engine_type=canonical_type,
+                device_name=self.deviceName,
+                model_size=self.whisperLocalModelSize,
+                language=self.whisperLocalLanguage,
+                device=self.whisperLocalDevice,
+                compute_type=self.whisperLocalComputeType,
+                vad_threshold=self.whisperLocalVadThreshold,
+                context_limit_chars=self.whisperLocalContextLimitChars,
+                auto_reset_context=self.whisperLocalAutoResetContext,
+                locale=self.whisperLocalLocale,
+                max_queue_depth=self.whisperLocalMaxQueueDepth,
+            )
         return EngineSettings(
             engine_type=canonical_type,
             device_name=self.deviceName,
         )
 
     def update_from_dataclass(
-        self, engine_settings: Union[NerdSettings, WhisperSettings, GoogleCloudSettings, OpenAISettings, AssemblyAISettings, GeminiSettings, VoskLocalSettings]
+        self, engine_settings: Union[NerdSettings, WhisperSettings, GoogleCloudSettings, OpenAISettings, AssemblyAISettings, GeminiSettings, VoskLocalSettings, WhisperLocalSettings]
     ) -> None:
         """
         Update settings from a dataclass instance via its plugin.

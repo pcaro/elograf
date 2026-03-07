@@ -10,6 +10,7 @@ from .openai import engine  # noqa: F401
 from .assemblyai import engine  # noqa: F401
 from .gemini import engine  # noqa: F401
 from .vosk_local import engine  # noqa: F401
+from .whisper_local import engine  # noqa: F401
 
 __all__ = [
     "nerd",
@@ -19,4 +20,5 @@ __all__ = [
     "assemblyai",
     "gemini",
     "vosk_local",
+    "whisper_local",
 ]

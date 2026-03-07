@@ -13,7 +13,7 @@ import logging
 import os
 import urllib.error
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Callable
 
 from PyQt6.QtCore import QDir, Qt
 from PyQt6.QtWidgets import (
@@ -44,11 +44,12 @@ from eloGraf.settings import Settings
 
 
 class AdvancedUI(QDialog):
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(self, settings: Settings | None = None, reset_context_callback: Optional[Callable] = None) -> None:
         super().__init__()
         self.ui = advanced.Ui_Dialog()
         self.ui.setupUi(self)
         self._settings_ref = settings
+        self._reset_context_callback = reset_context_callback
         self.engine_tabs: Dict[str, QWidget] = {}
         self.engine_settings_classes: Dict[str, type] = {}
         self._add_shortcuts_config()
@@ -170,6 +171,11 @@ class AdvancedUI(QDialog):
                     except (TypeError, RuntimeError):
                         pass
                     button.clicked.connect(lambda _checked=False, tab=tab_widget: self._handle_model_selection(tab))
+            
+            if engine_id == "whisper-local":
+                button = tab_widget.widgets_map.get("reset_context_action")
+                if isinstance(button, QPushButton) and self._reset_context_callback:
+                    button.clicked.connect(self._reset_context_callback)
 
     def _populate_engine_dropdown(self) -> None:
         """Populate the engine dropdown with all registered engines."""

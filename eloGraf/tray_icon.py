@@ -324,16 +324,22 @@ class SystemTrayIcon(QSystemTrayIcon):
             if parts:
                 Popen(parts)
         self._postcommand_ran = False
-        try:
-            cmd, env = build_dictation_command(self.settings, location)
-        except CommandBuildError as exc:
-            logging.warning("Failed to build STT command: %s", exc)
-            self.state_machine.set_idle()
-            self._postcommand_ran = True
-            return
-        logging.debug(
-            "Starting STT engine with the command {}".format(" ".join(cmd))
-        )
+        
+        cmd, env = [], None
+        if self.settings.sttEngine not in ("whisper-local", "vosk-local"):
+            try:
+                cmd, env = build_dictation_command(self.settings, location)
+                logging.debug(
+                    "Starting STT engine with the command {}".format(" ".join(cmd))
+                )
+            except CommandBuildError as exc:
+                logging.warning("Failed to build STT command: %s", exc)
+                self.state_machine.set_idle()
+                self._postcommand_ran = True
+                return
+        else:
+            logging.debug(f"Starting local STT engine: {self.settings.sttEngine}")
+
         # Switch icon to loading before starting the runner so an immediate
         # READY notification cannot be overwritten by our own state change.
         self.state_machine.set_loading()
@@ -406,8 +412,14 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.stop_dictate()
         self.state_machine.set_idle()
 
+    def _handle_reset_context(self):
+        """Handle request to reset engine context (if supported)."""
+        runner = self.dictation_runner
+        if runner and hasattr(runner, "reset_context"):
+            runner.reset_context()
+
     def show_config_dialog(self) -> None:
-        adv_window = AdvancedUI(self.settings)
+        adv_window = AdvancedUI(self.settings, reset_context_callback=self._handle_reset_context)
 
         # General settings
         adv_window.ui.precommand.setText(self.settings.precommand)
