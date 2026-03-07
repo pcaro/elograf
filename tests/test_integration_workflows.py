@@ -31,7 +31,7 @@ def qt_app():
 def fake_engine(monkeypatch) -> List[Tuple[FakeController, FakeRunner]]:
     created: List[Tuple[FakeController, FakeRunner]] = []
 
-    def factory(engine_type: str = "nerd-dictation", **kwargs):
+    def factory(engine_type: str = "vosk-local", **kwargs):
         controller = FakeController()
         runner = FakeRunner(controller)
         created.append((controller, runner))

@@ -38,11 +38,12 @@ uv run elograf
 - vosk
 
 **Engine-Specific Dependencies:**
-- **nerd-dictation**: Must be installed separately (not included)
+- **Vosk (Local)**: `vosk` (auto-installed)
 - **Whisper (Local)**: `faster-whisper`, `silero-vad`, `torch`, `torchaudio`
 - **Whisper Docker**: `requests` (auto-installed), Docker
 - **Google Cloud Speech**: `google-cloud-speech` (auto-installed)
 - **OpenAI Realtime**: `websocket-client` (auto-installed)
+- **Gemini Live**: `websocket-client` (auto-installed)
 
 **All Python dependencies are automatically installed by `uv`:**
 ```bash

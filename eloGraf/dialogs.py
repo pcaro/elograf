@@ -37,7 +37,7 @@ from eloGraf.engine_settings_registry import (
     get_engine_settings_class,
     get_engine_display_name,
 )
-from eloGraf.engines.nerd.ui.dialogs import launch_model_selection_dialog
+from eloGraf.model_ui.dialogs import launch_model_selection_dialog
 from eloGraf.audio_recorder import get_audio_devices
 
 from eloGraf.settings import Settings
@@ -162,7 +162,7 @@ class AdvancedUI(QDialog):
             self.engine_tabs[engine_id] = tab_widget
             self.engine_settings_classes[engine_id] = settings_class
 
-            if engine_id in ("nerd-dictation", "vosk-local"):
+            if engine_id == "vosk-local":
                 button = tab_widget.widgets_map.get("manage_models_action")
                 if isinstance(button, QPushButton):
                     try:

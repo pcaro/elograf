@@ -8,16 +8,11 @@ import importlib
 
 
 # Engine registry with metadata for each speech-to-text engine
-ENGINES: Dict[str, Dict[str, str]] = {
-    "nerd-dictation": {
-        "module": "eloGraf.engines.nerd.settings",
-        "class": "NerdSettings",
-        "display_name": "Nerd Dictation",
-    },
+ENGINES: Dict[str, Dict[str, Any]] = {
     "whisper-docker": {
         "module": "eloGraf.engines.whisper.settings",
         "class": "WhisperSettings",
-        "display_name": "Whisper Docker",
+        "display_name": "Whisper (Docker)",
     },
     "google-cloud-speech": {
         "module": "eloGraf.engines.google.settings",
@@ -56,7 +51,7 @@ def get_engine_settings_class(engine_id: str) -> Optional[Type]:
     """Get the settings dataclass for an engine.
 
     Args:
-        engine_id: Engine identifier (e.g., "nerd-dictation")
+        engine_id: Engine identifier (e.g., "vosk-local")
 
     Returns:
         Settings dataclass type, or None if not found

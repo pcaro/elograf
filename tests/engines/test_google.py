@@ -171,7 +171,7 @@ def test_get_available_engines():
     """Test get_available_engines includes Google Cloud Speech."""
     engines = get_available_engines()
     assert "google-cloud-speech" in engines
-    assert "nerd-dictation" in engines
+    assert "vosk-local" in engines
     assert "whisper-docker" in engines
 
 

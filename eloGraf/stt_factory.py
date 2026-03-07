@@ -37,7 +37,7 @@ def _instantiate_settings(plugin: EnginePlugin, **kwargs) -> EngineSettings:
     return schema(**schema_kwargs)  # type: ignore[call-arg]
 
 
-def create_stt_engine(engine_type: str = "nerd-dictation", **kwargs) -> Tuple[STTController, STTProcessRunner]:
+def create_stt_engine(engine_type: str = "vosk-local", **kwargs) -> Tuple[STTController, STTProcessRunner]:
     """Create controller and runner for the specified engine via its plugin."""
     plugin = get_plugin(engine_type)
     settings_obj = _instantiate_settings(plugin, **kwargs)

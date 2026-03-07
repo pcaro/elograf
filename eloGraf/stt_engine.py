@@ -1,5 +1,5 @@
 # ABOUTME: Abstract interfaces for speech-to-text engine controllers and process runners.
-# ABOUTME: Defines base contracts for integrating different STT engines (nerd-dictation, Docker, Whisper, etc.).
+# ABOUTME: Defines base contracts for integrating different STT engines (Vosk, Whisper, etc.).
 
 from __future__ import annotations
 

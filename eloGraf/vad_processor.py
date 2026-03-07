@@ -161,19 +161,23 @@ class SileroVADProcessor(VADProcessor):
         """Load Silero VAD model."""
         import torch
         import logging
-        
+        import warnings
+
         # Respect global log level
         is_verbose = logging.getLogger().getEffectiveLevel() <= logging.INFO
-        
+
         # Check if model is available, if not it will be downloaded
         # snakers4/silero-vad is the official repository
-        self._model, self._utils = torch.hub.load(
-            repo_or_dir='snakers4/silero-vad',
-            model='silero_vad',
-            force_reload=False,
-            onnx=False,
-            verbose=is_verbose
-        )
+        # We suppress DeprecationWarning: torch.jit.load is deprecated.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*torch.jit.load.*")
+            self._model, self._utils = torch.hub.load(
+                repo_or_dir="snakers4/silero-vad",
+                model="silero_vad",
+                force_reload=False,
+                onnx=False,
+                verbose=is_verbose,
+            )
         self._model.eval()
     
     def _compute_vad_probability(self, audio_chunk: bytes) -> float:

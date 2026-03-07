@@ -136,8 +136,8 @@ def test_commute_toggles(tray, monkeypatch):
 
 def test_tooltip_updates_with_model(tray, monkeypatch):
     tray_icon, _ = tray
-    # Set engine to nerd-dictation for this test
-    tray_icon.settings.sttEngine = "nerd-dictation"
+    # Set engine to vosk-local for this test
+    tray_icon.settings.sttEngine = "vosk-local"
     tray_icon.temporary_engine = None
     controller = tray_icon.dictation_controller
     if hasattr(controller, "_settings"):
@@ -145,7 +145,7 @@ def test_tooltip_updates_with_model(tray, monkeypatch):
     tray_icon._update_tooltip()
     tooltip_lines = tray_icon.toolTip().split("\n")
     assert tooltip_lines[0] == "EloGraf"
-    assert tooltip_lines[1].startswith("Nerd-Dictation")
+    assert tooltip_lines[1].startswith("Vosk Local")
     assert "Model:" in tooltip_lines[1]
     assert " a" in tooltip_lines[1]
 

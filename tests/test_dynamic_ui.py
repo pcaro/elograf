@@ -217,9 +217,9 @@ def test_readonly_text_widget(qt_app):
 def test_generate_tab_for_engine_settings(qt_app):
     """Test generating a complete tab for engine settings."""
     from eloGraf.ui_generator import generate_settings_tab
-    from eloGraf.engines.nerd.settings import NerdSettings
+    from eloGraf.engines.vosk_local.settings import VoskLocalSettings
 
-    tab_widget = generate_settings_tab(NerdSettings)
+    tab_widget = generate_settings_tab(VoskLocalSettings)
 
     assert tab_widget is not None
     # Tab should have a form layout with widgets for each field
@@ -230,15 +230,14 @@ def test_generate_tab_for_engine_settings(qt_app):
 def test_read_values_from_widgets(qt_app):
     """Test reading values back from widgets into a dataclass."""
     from eloGraf.ui_generator import generate_settings_tab, read_settings_from_tab
-    from eloGraf.engines.nerd.settings import NerdSettings
+    from eloGraf.engines.vosk_local.settings import VoskLocalSettings
 
     # Create tab with default values
-    tab_widget = generate_settings_tab(NerdSettings)
+    tab_widget = generate_settings_tab(VoskLocalSettings)
 
     # Read values back
-    settings = read_settings_from_tab(tab_widget, NerdSettings)
+    settings = read_settings_from_tab(tab_widget, VoskLocalSettings)
 
-    assert isinstance(settings, NerdSettings)
+    assert isinstance(settings, VoskLocalSettings)
     # Should have default values
-    assert settings.sample_rate == 44100
-    assert settings.timeout == 0
+    assert settings.sample_rate == 16000

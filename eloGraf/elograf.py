@@ -67,13 +67,8 @@ from eloGraf.model_repository import (
     load_model_index,
     model_list_path,
 )
-from eloGraf.engines.nerd.controller import (  # type: ignore
-    NerdDictationController,
-    NerdDictationProcessRunner,
-    NerdDictationState,
-)
 from eloGraf.cli import build_parser, choose_ipc_command, handle_model_commands
-from eloGraf.ipc_manager import create_ipc_manager, IPCManager  # type: ignore
+from eloGraf.ipc_manager import create_ipc_manager, IPCManager
 
 from eloGraf.tray_icon import SystemTrayIcon
 from eloGraf.pidfile import remove_pid_file, write_pid_file

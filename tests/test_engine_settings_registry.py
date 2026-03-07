@@ -19,7 +19,6 @@ def test_get_all_engine_ids_returns_list():
     assert len(engine_ids) > 0
 
     # Verify expected engines are present
-    assert "nerd-dictation" in engine_ids
     assert "whisper-docker" in engine_ids
     assert "google-cloud-speech" in engine_ids
     assert "openai-realtime" in engine_ids
@@ -29,8 +28,7 @@ def test_get_all_engine_ids_returns_list():
 
 def test_get_engine_display_name_returns_human_readable():
     """Test get_engine_display_name returns human-readable names."""
-    assert get_engine_display_name("nerd-dictation") == "Nerd Dictation"
-    assert get_engine_display_name("whisper-docker") == "Whisper Docker"
+    assert get_engine_display_name("whisper-docker") == "Whisper (Docker)"
     assert get_engine_display_name("google-cloud-speech") == "Google Cloud"
     assert get_engine_display_name("openai-realtime") == "OpenAI"
     assert get_engine_display_name("assemblyai") == "AssemblyAI"
@@ -45,14 +43,12 @@ def test_get_engine_display_name_fallback_for_unknown():
 
 def test_get_engine_settings_class_returns_dataclass():
     """Test get_engine_settings_class returns the correct settings class."""
-    from eloGraf.engines.nerd.settings import NerdSettings
     from eloGraf.engines.whisper.settings import WhisperSettings
     from eloGraf.engines.google.settings import GoogleCloudSettings
     from eloGraf.engines.openai.settings import OpenAISettings
     from eloGraf.engines.assemblyai.settings import AssemblyAISettings
     from eloGraf.engines.gemini.settings import GeminiSettings
 
-    assert get_engine_settings_class("nerd-dictation") == NerdSettings
     assert get_engine_settings_class("whisper-docker") == WhisperSettings
     assert get_engine_settings_class("google-cloud-speech") == GoogleCloudSettings
     assert get_engine_settings_class("openai-realtime") == OpenAISettings

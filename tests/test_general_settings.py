@@ -13,7 +13,7 @@ def test_general_settings_defaults():
 
     settings = GeneralSettings()
 
-    assert settings.stt_engine == "nerd-dictation"
+    assert settings.stt_engine == "vosk-local"
     assert settings.precommand == ""
     assert settings.postcommand == ""
     assert settings.env == ""

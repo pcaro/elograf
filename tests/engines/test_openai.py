@@ -181,7 +181,7 @@ def test_get_available_engines():
     """Test get_available_engines includes OpenAI Realtime."""
     engines = get_available_engines()
     assert "openai-realtime" in engines
-    assert "nerd-dictation" in engines
+    assert "vosk-local" in engines
     assert "whisper-docker" in engines
     assert "google-cloud-speech" in engines
 

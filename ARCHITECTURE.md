@@ -28,8 +28,11 @@ Elograf uses an abstract interface pattern to support multiple STT engines throu
 ```
 STTController                    STTProcessRunner
      │                                  │
-     ├── NerdDictationController        ├── NerdDictationProcessRunner
-     │   └── NerdDictationState         │   └── Manages nerd-dictation CLI
+     ├── VoskLocalController            ├── VoskLocalRunner
+     │   └── VoskLocalState             │   └── Native Vosk library
+     │                                  │
+     ├── WhisperLocalController         ├── WhisperLocalRunner
+     │   └── WhisperLocalState          │   └── Native faster-whisper
      │                                  │
      ├── WhisperDockerController        ├── WhisperDockerProcessRunner
      │   └── WhisperDockerState         │   ├── Docker container management
@@ -136,12 +139,18 @@ Factory functions for engine creation:
 
 ### Engine Implementations
 
-Engine controllers and runners are located in the `eloGraf/engines/` directory, organized as sub-packages (e.g., `eloGraf/engines/nerd/`, `eloGraf/engines/whisper/`, etc.).
+Engine controllers and runners are located in the `eloGraf/engines/` directory, organized as sub-packages (e.g., `eloGraf/engines/vosk_local/`, `eloGraf/engines/whisper_local/`, etc.).
 
-**`nerd/controller.py`**
-- Manages nerd-dictation subprocess
-- Parses stdout for state changes
-- Direct CLI integration
+**`vosk_local/controller.py`**
+- Native Vosk library integration
+- Offline, low-resource processing
+- Direct audio stream processing
+
+**`whisper_local/controller.py`**
+- Native faster-whisper integration
+- High-accuracy offline processing
+- Context-aware transcription
+- Native audio streaming (no Docker)
 
 **`whisper/controller.py`**
 - Docker container lifecycle management
@@ -199,7 +208,7 @@ Persistent configuration using QSettings:
 
 ## Audio Recording
 
-All streaming engines (Whisper, Google Cloud, OpenAI, AssemblyAI, Gemini) use a unified `AudioRecorder` class with pluggable backends:
+All streaming engines (Whisper Local, Whisper Docker, Google Cloud, OpenAI, AssemblyAI, Gemini) use a unified `AudioRecorder` class with pluggable backends:
 
 ```python
 class AudioRecorder:

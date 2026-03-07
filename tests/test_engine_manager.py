@@ -119,7 +119,7 @@ def test_circuit_breaker_switches_to_fallback(monkeypatch, qt_app):
 
 def test_circuit_breaker_calls_fatal_without_fallback(monkeypatch, qt_app):
     settings = DummySettings()
-    settings.sttEngine = "nerd-dictation"
+    settings.sttEngine = "vosk-local"
     manager = EngineManager(settings, max_retries=1, retry_delay_ms=1)
 
     created_engines: list[str] = []
@@ -146,7 +146,7 @@ def test_circuit_breaker_calls_fatal_without_fallback(monkeypatch, qt_app):
     assert fatal_called is True
     assert manager._temporary_engine is None
     assert manager._circuit_open_until is not None
-    assert created_engines == ["nerd-dictation"]
+    assert created_engines == ["vosk-local"]
 
 
 def test_circuit_breaker_restores_primary_after_window(monkeypatch, qt_app):

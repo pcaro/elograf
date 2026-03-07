@@ -10,7 +10,6 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from eloGraf.dialogs import AdvancedUI
-from eloGraf.dictation import CommandBuildError, build_dictation_command
 from eloGraf.engine_manager import EngineManager
 from eloGraf.ipc_manager import IPCManager
 from eloGraf.stt_engine import STTController, STTProcessRunner
@@ -325,26 +324,14 @@ class SystemTrayIcon(QSystemTrayIcon):
                 Popen(parts)
         self._postcommand_ran = False
         
-        cmd, env = [], None
-        if self.settings.sttEngine not in ("whisper-local", "vosk-local"):
-            try:
-                cmd, env = build_dictation_command(self.settings, location)
-                logging.debug(
-                    "Starting STT engine with the command {}".format(" ".join(cmd))
-                )
-            except CommandBuildError as exc:
-                logging.warning("Failed to build STT command: %s", exc)
-                self.state_machine.set_idle()
-                self._postcommand_ran = True
-                return
-        else:
-            logging.debug(f"Starting local STT engine: {self.settings.sttEngine}")
+        # All currently supported engines are managed via EngineManager and use streaming/local logic
+        logging.debug(f"Starting STT engine: {self.settings.sttEngine}")
 
         # Switch icon to loading before starting the runner so an immediate
         # READY notification cannot be overwritten by our own state change.
         self.state_machine.set_loading()
 
-        if not self.dictation_runner.start(cmd, env=env):
+        if not self.dictation_runner.start([], env=None):
             self.state_machine.set_idle()
             self._postcommand_ran = True
             return
@@ -459,7 +446,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
             # Get current engine
             engine_data = adv_window.ui.stt_engine_cb.currentData()
-            current_engine = engine_data if engine_data else "nerd-dictation"
+            current_engine = engine_data if engine_data else "vosk-local"
 
             # Validate General tab
             from eloGraf.validators import validate_command_exists
@@ -576,7 +563,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
             # STT Engine
             engine_data = adv_window.ui.stt_engine_cb.currentData()
-            self.settings.sttEngine = engine_data if engine_data else "nerd-dictation"
+            self.settings.sttEngine = engine_data if engine_data else "vosk-local"
 
             # Engine-specific settings from dynamic tabs
             from eloGraf.engine_settings_registry import get_all_engine_ids

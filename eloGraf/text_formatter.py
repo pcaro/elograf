@@ -6,7 +6,7 @@ from typing import List
 class TextFormatter:
     """Formats transcribed text with capitalization, punctuation, and number conversion.
     
-    Replicates advanced features from nerd-dictation for Vosk/Whisper compatibility.
+    Provides advanced features for Vosk/Whisper compatibility.
     """
     
     # Question words by language

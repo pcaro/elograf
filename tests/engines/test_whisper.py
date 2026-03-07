@@ -169,16 +169,6 @@ def test_factory_creates_whisper_docker_engine():
     assert isinstance(runner, WhisperDockerProcessRunner)
 
 
-def test_factory_creates_nerd_dictation_engine():
-    from eloGraf.stt_factory import create_stt_engine
-    from eloGraf.engines.nerd.controller import NerdDictationController, NerdDictationProcessRunner
-
-    controller, runner = create_stt_engine("nerd-dictation")
-
-    assert isinstance(controller, NerdDictationController)
-    assert isinstance(runner, NerdDictationProcessRunner)
-
-
 def test_factory_raises_on_invalid_engine():
     from eloGraf.stt_factory import create_stt_engine
 
@@ -191,7 +181,7 @@ def test_get_available_engines():
 
     engines = get_available_engines()
 
-    assert "nerd-dictation" in engines
+    assert "vosk-local" in engines
     assert "whisper-docker" in engines
 
 
@@ -204,7 +194,7 @@ def test_settings_stt_engine_defaults():
     settings = Settings(backend)
 
     # Check defaults
-    assert settings.sttEngine == "nerd-dictation"
+    assert settings.sttEngine == "vosk-local"
     assert settings.whisperModel == "base"
     assert settings.whisperLanguage == ""
     assert settings.whisperPort == 9000

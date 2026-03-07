@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 # Import modules for side effects (engine plugin registration)
-from .nerd import engine  # noqa: F401
 from .whisper import engine  # noqa: F401
 from .google import engine  # noqa: F401
 from .openai import engine  # noqa: F401
@@ -13,7 +12,6 @@ from .vosk_local import engine  # noqa: F401
 from .whisper_local import engine  # noqa: F401
 
 __all__ = [
-    "nerd",
     "whisper",
     "google",
     "openai",

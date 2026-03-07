@@ -39,7 +39,7 @@
           <item row="0" column="0">
            <widget class="QLabel" name="label_stt_engine">
             <property name="toolTip">
-             <string>&lt;b&gt;Speech-to-Text Engine&lt;/b&gt;&lt;br&gt;Select the STT engine for dictation.&lt;br&gt;&lt;br&gt;&lt;b&gt;nerd-dictation:&lt;/b&gt; Local, offline, private&lt;br&gt;&lt;b&gt;whisper-docker:&lt;/b&gt; High accuracy, requires Docker&lt;br&gt;&lt;b&gt;google-cloud-speech:&lt;/b&gt; Enterprise-grade, requires GCP account&lt;br&gt;&lt;b&gt;openai-realtime:&lt;/b&gt; Low latency, requires API key&lt;br&gt;&lt;b&gt;assemblyai:&lt;/b&gt; Real-time streaming&lt;br&gt;&lt;b&gt;gemini:&lt;/b&gt; Google AI, requires API key</string>
+             <string>&lt;b&gt;Speech-to-Text Engine&lt;/b&gt;&lt;br&gt;Select the STT engine for dictation.&lt;br&gt;&lt;br&gt;&lt;b&gt;vosk-local:&lt;/b&gt; Lightweight, offline, private&lt;br&gt;&lt;b&gt;whisper-local:&lt;/b&gt; High accuracy, offline, runs natively&lt;br&gt;&lt;b&gt;whisper-docker:&lt;/b&gt; High accuracy, requires Docker&lt;br&gt;&lt;b&gt;google-cloud-speech:&lt;/b&gt; Enterprise-grade, requires GCP account&lt;br&gt;&lt;b&gt;openai-realtime:&lt;/b&gt; Low latency, requires API key&lt;br&gt;&lt;b&gt;assemblyai:&lt;/b&gt; Real-time streaming&lt;br&gt;&lt;b&gt;gemini:&lt;/b&gt; Google AI, requires API key</string>
             </property>
             <property name="text">
              <string>STT Engine</string>
@@ -49,11 +49,16 @@
           <item row="0" column="1">
            <widget class="QComboBox" name="stt_engine_cb">
             <property name="currentText">
-             <string>nerd-dictation</string>
+             <string>vosk-local</string>
             </property>
             <item>
              <property name="text">
-              <string>nerd-dictation</string>
+              <string>vosk-local</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>whisper-local</string>
              </property>
             </item>
             <item>

@@ -20,7 +20,6 @@ def _assembly_available() -> bool:
 
 
 STATUS_CASES: List = [
-    ("nerd-dictation", {}, ["Nerd-Dictation", "Model:"]),
     ("whisper-docker", {}, ["Whisper Docker", "Model:", "Lang:"]),
     ("google-cloud-speech", {}, ["Google Cloud", "Model:", "Lang:"]),
     ("openai-realtime", {"api_key": "sk-test"}, ["OpenAI Realtime", "Model:", "Lang:"]),

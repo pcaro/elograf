@@ -1,6 +1,6 @@
 # Project Description
 
-EloGraf is a desktop utility written in Python that facilitates voice dictation on Linux by integrating with multiple speech recognition engines, including nerd-dictation, Whisper Docker, Google Cloud Speech, OpenAI Realtime, AssemblyAI Realtime, and Gemini Live API. The application offers a system tray, global shortcuts, and an advanced interface for configuring audio devices, pre/post commands, and engine-specific parameters for each STT engine.
+EloGraf is a desktop utility written in Python that facilitates voice dictation on Linux by integrating with multiple speech recognition engines, including Whisper (Local), Vosk (Local), Whisper Docker, Google Cloud Speech, OpenAI Realtime, AssemblyAI Realtime, and Gemini Live API. The application offers a system tray, global shortcuts, and an advanced interface for configuring audio devices, pre/post commands, and engine-specific parameters for each STT engine.
 
 ## Main Capabilities
 - Graphical launcher and CLI to start, stop, suspend, and resume dictation
@@ -52,53 +52,35 @@ The AudioRecorder automatically selects the best available backend (prefers pare
 
 ## Speech Recognition Engines
 
-### 1. nerd-dictation (Default)
+### 1. Whisper (Local)
 
-The nerd-dictation integration is implemented in the `eloGraf/engines/nerd/` package and provides a local, privacy-focused CLI-based speech recognition solution.
+The Whisper Local integration is implemented in the `eloGraf/engines/whisper_local/` package and provides a high-accuracy, fully offline speech recognition solution using `faster-whisper`.
 
 #### Architecture
 
-nerd-dictation is an external command-line tool that EloGraf wraps and monitors. The controller parses stdout to detect state changes.
+Runs OpenAI's Whisper models natively on the local machine using CTranslate2.
 
 **Key Features:**
-- Fully offline operation with no network requirements
-- Local Vosk model processing
-- Direct subprocess management
-- State detection via output parsing
+- Fully offline operation
+- High accuracy with context-aware processing
+- Supports multiple model sizes (tiny, base, small, medium, large-v3)
+- Native execution (no Docker required)
 
-#### State Machine
+### 2. Vosk (Local)
 
-States are detected by parsing nerd-dictation's stdout messages:
+The Vosk Local integration is implemented in the `eloGraf/engines/vosk_local/` package and provides a lightweight, privacy-focused offline speech recognition solution.
 
-- **IDLE**: No dictation active
-- **STARTING**: Process launching
-- **LOADING**: "loading model" detected in output
-- **READY**: "model loaded", "listening", or "ready" detected
-- **DICTATING**: "dictation started" detected
-- **SUSPENDED**: "suspended" detected
-- **STOPPING**: Stop command sent
-- **FAILED**: Non-zero exit or error
+#### Architecture
 
-#### Process Management
+Uses the `vosk` Python library for local processing.
 
-Unlike other engines, nerd-dictation uses separate command invocations for control:
+**Key Features:**
+- Fully offline operation
+- Extremely low resource usage
+- Fast processing on CPU
+- Compatible with many languages via Vosk models
 
-```bash
-nerd-dictation begin         # Start dictation
-nerd-dictation end           # Stop dictation
-nerd-dictation suspend       # Pause
-nerd-dictation resume        # Continue
-```
-
-EloGraf spawns the main process and monitors stdout, sending control commands via separate subprocess calls.
-
-#### Requirements
-
-- `nerd-dictation` installed separately (not included)
-- Vosk model files downloaded
-- PulseAudio or ALSA for audio capture
-
-### 2. Whisper Docker
+### 3. Whisper Docker
 
 The Whisper Docker integration is implemented in the `eloGraf/engines/whisper/` package and runs OpenAI's Whisper ASR in a Docker container as a REST API service.
 
@@ -107,142 +89,25 @@ The Whisper Docker integration is implemented in the `eloGraf/engines/whisper/` 
 Uses the `onerahmet/openai-whisper-asr-webservice` Docker image, which exposes a REST API at port 9000 (configurable).
 
 **Key Features:**
-- High accuracy with Whisper models (tiny, base, small, medium, large-v3)
+- High accuracy with Whisper models
 - Automatic container lifecycle management
 - Voice Activity Detection (VAD) to skip silence
-- Auto-reconnect on API failures
 
-#### Container Management
-
-The runner automatically:
-1. Checks if container exists and matches requested model
-2. Stops/recreates container if model changed
-3. Starts container if stopped
-4. Waits for API readiness (up to 180s timeout)
-
-```bash
-docker run -d --name elograf-whisper \
-  -p 9000:9000 \
-  -e ASR_MODEL=base \
-  -e ASR_ENGINE=openai_whisper \
-  onerahmet/openai-whisper-asr-webservice:latest
-```
-
-#### Audio Processing Flow
-
-1. **Record**: Captures audio chunks via AudioRecorder (configurable duration, default 5s)
-2. **VAD Check**: Calculates RMS audio level, skips if below threshold
-3. **Transcribe**: POSTs WAV file to `/asr` endpoint with parameters
-4. **Simulate**: Types transcribed text using dotool/xdotool
-5. **Retry**: Auto-reconnects and retries on failures (up to 3 attempts)
-
-#### Requirements
-
-- Docker installed and running
-- Network access for initial image download (~2GB)
-- AudioRecorder (parec or PyAudio) for audio recording
-
-### 3. Google Cloud Speech-to-Text V2
+### 4. Google Cloud Speech-to-Text V2
 
 The Google Cloud Speech integration is implemented in the `eloGraf/engines/google/` package and uses Google's enterprise-grade speech recognition API with gRPC streaming.
 
-#### Architecture
-
-Uses the `google-cloud-speech` Python library to stream audio in real-time to Google Cloud Speech-to-Text V2 API.
-
-**Key Features:**
-- Real-time streaming recognition with bidirectional gRPC
-- State-of-the-art accuracy with Chirp 3 model
-- Multi-language support
-- Server-side processing
-- Automatic project ID detection from credentials
-
-#### Authentication
-
-Supports Service Account Key Files and Application Default Credentials.
-
-#### Streaming Flow
-
-1. **Setup**: Creates SpeechClient and configures recognizer
-2. **Generator**: Yields audio chunks as StreamingRecognizeRequest
-3. **Stream**: Bidirectional gRPC stream processes audio in real-time
-4. **Output**: Only final results are emitted and typed
-
-#### Requirements
-
-- Google Cloud account with Speech-to-Text API enabled
-- Service account credentials JSON file
-- `google-cloud-speech` Python library
-- AudioRecorder (parec or PyAudio) for audio recording
-
-### 4. OpenAI Realtime API
+### 5. OpenAI Realtime API
 
 The OpenAI Realtime API integration is implemented in the `eloGraf/engines/openai/` package and uses a WebSocket-based communication model for real-time voice transcription.
 
-#### Architecture
+### 6. AssemblyAI Realtime
 
-Uses WebSocket bidirectional connection to `wss://api.openai.com/v1/realtime`.
+The AssemblyAI integration is implemented in the `eloGraf/engines/assemblyai/` package and provides another cloud-hosted, low-latency streaming engine.
 
-**Key Features:**
-- Ultra-low latency streaming
-- Server-side VAD (Voice Activity Detection)
-- Configurable models (`gpt-4o-realtime-preview`, `gpt-4o-mini-realtime-preview`)
-- Partial and final transcriptions
-
-#### Audio Data Flow
-
-1. **Capture**: Audio captured via AudioRecorder (PCM 16-bit, 16kHz, mono)
-2. **Send**: Chunks of 200ms are Base64 encoded and sent as `input_audio_buffer.append` events.
-3. **Transcription**: Server processes audio and sends delta fragments followed by a final completion event.
-4. **Input simulation**: Transcribed text is written via dotool or xdotool.
-
-#### Requirements
-
-- OpenAI API key
-- Internet connectivity
-- `websocket-client` Python library
-- AudioRecorder (parec or PyAudio) for audio recording
-
-### 5. AssemblyAI Realtime
-
-The AssemblyAI integration is implemented in the `eloGraf/engines/assemblyai/` package and provides another cloud-hosted, low-latency streaming engine with optional live transcript formatting.
-
-#### Architecture
-
-AssemblyAI exposes a secured WebSocket endpoint that accepts PCM16 audio frames and returns interim/final transcripts.
-
-**Key Features:**
-- Real-time streaming with interim and final results
-- Support for multiple languages
-- Easy authentication via API Key or temporary tokens
-
-#### Requirements
-
-- AssemblyAI API key
-- Internet connectivity
-- `websocket-client` Python library
-- AudioRecorder (parec or PyAudio) for audio recording
-
-### 6. Gemini Live API
+### 7. Gemini Live API
 
 The Gemini Live API integration is implemented in the `eloGraf/engines/gemini/` package and uses Google's Gemini models for real-time speech-to-text via WebSockets.
-
-#### Architecture
-
-Connects to the Gemini Live API using WebSockets for bidirectional audio and text streaming.
-
-**Key Features:**
-- Real-time transcription with Gemini models (e.g., `gemini-2.5-flash`)
-- Server-side VAD support
-- Multi-language support via BCP-47 codes
-- High accuracy and low latency
-
-#### Requirements
-
-- Google AI API key (from AI Studio)
-- Internet connectivity
-- `websocket-client` Python library
-- AudioRecorder (parec or PyAudio) for audio recording
 
 ## Testing
 

@@ -1,4 +1,4 @@
-# ABOUTME: Nerd-dictation model management dialogs and callbacks.
+# ABOUTME: Vosk model management dialogs and callbacks.
 # ABOUTME: Provides ConfigPopup and helper dialogs used by the settings UI.
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 )
 
 from . import custom
-from ....model_repository import (
+from eloGraf.model_repository import (
     MODEL_GLOBAL_PATH,
     MODEL_USER_PATH,
     MODELS_URL,
@@ -40,14 +40,14 @@ from ....model_repository import (
 from . import confirm
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....settings import Settings
+    from eloGraf.settings import Settings
 
 if TYPE_CHECKING:  # pragma: no cover
     from PyQt6.QtWidgets import QWidget
 
 
 class Models(QStandardItemModel):
-    """Table model listing available nerd-dictation models."""
+    """Table model listing available Vosk models."""
 
     def __init__(self) -> None:
         super().__init__(0, 5)
@@ -73,7 +73,7 @@ class ConfirmDownloadUI(QDialog):
 
 
 class CustomUI(QDialog):
-    """Dialog used to add or edit local nerd-dictation models."""
+    """Dialog used to add or edit local Vosk models."""
 
     def __init__(self, index: int, settings: Settings) -> None:
         super().__init__()
@@ -279,10 +279,10 @@ class DownloadPopup(QDialog):
 
 
 class ConfigPopup(QDialog):
-    """Main nerd-dictation model management dialog."""
+    """Main model management dialog."""
 
     def __init__(self, current_model: str, parent=None) -> None:
-        from ....settings import Settings
+        from eloGraf.settings import Settings
         super().__init__(parent)
         self.settings = Settings()
         self.currentModel = current_model
@@ -409,8 +409,8 @@ class ConfigPopup(QDialog):
 
 
 def launch_model_selection_dialog(parent: QWidget | None = None, *_, **__) -> None:
-    """Launch the nerd-dictation model management dialog."""
-    from ....settings import Settings
+    """Launch the model management dialog."""
+    from eloGraf.settings import Settings
 
     # When connected to a clicked(bool) signal, Qt passes the checked state as
     # the first positional argument. Handle that gracefully by treating bool

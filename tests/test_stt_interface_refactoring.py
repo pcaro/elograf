@@ -5,8 +5,6 @@ from __future__ import annotations
 
 import pytest
 
-from eloGraf.engines.nerd.controller import NerdDictationController
-from eloGraf.engines.nerd.settings import NerdSettings
 from eloGraf.engines.whisper.controller import WhisperDockerController
 from eloGraf.engines.whisper.settings import WhisperSettings
 
@@ -31,10 +29,6 @@ try:
     HAS_ASSEMBLYAI = True
 except ImportError:
     HAS_ASSEMBLYAI = False
-
-
-def make_nerd_controller(**kwargs) -> NerdDictationController:
-    return NerdDictationController(NerdSettings(**kwargs))
 
 
 def make_whisper_controller(**kwargs) -> WhisperDockerController:
@@ -63,45 +57,6 @@ if HAS_ASSEMBLYAI:
 else:
     def make_assembly_controller(**kwargs):  # pragma: no cover - guarded by skipif
         raise RuntimeError("AssemblyAI controller unavailable")
-
-
-def test_nerd_controller_transition_to():
-    """Test NerdDictationController.transition_to() method."""
-    controller = make_nerd_controller()
-
-    states_seen = []
-    controller.add_state_listener(lambda state: states_seen.append(state))
-
-    # Should be able to transition using unified method
-    controller.transition_to("loading")
-    controller.transition_to("ready")
-    controller.transition_to("dictating")
-
-    assert len(states_seen) >= 3
-
-
-def test_nerd_controller_emit_transcription():
-    """Test NerdDictationController.emit_transcription() method."""
-    controller = make_nerd_controller()
-
-    outputs = []
-    controller.add_output_listener(lambda text: outputs.append(text))
-
-    controller.emit_transcription("hello world")
-
-    assert outputs == ["hello world"]
-
-
-def test_nerd_controller_emit_error():
-    """Test NerdDictationController.emit_error() method."""
-    controller = make_nerd_controller()
-
-    outputs = []
-    controller.add_output_listener(lambda text: outputs.append(text))
-
-    controller.emit_error("test error")
-
-    assert "test error" in outputs or "error" in outputs[0].lower()
 
 
 def test_whisper_controller_transition_to():
@@ -180,7 +135,6 @@ def test_assemblyai_controller_emit_transcription():
 def test_all_controllers_have_unified_interface():
     """Test that all controllers implement the unified interface."""
     controllers = [
-        make_nerd_controller(),
         make_whisper_controller(),
     ]
 

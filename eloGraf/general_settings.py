@@ -11,7 +11,7 @@ class GeneralSettings:
     """General application settings with validation metadata."""
 
     stt_engine: str = field(
-        default="nerd-dictation",
+        default="vosk-local",
         metadata={
             "label": "STT Engine",
             "widget": "dropdown",

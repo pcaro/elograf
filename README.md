@@ -2,7 +2,7 @@
 
 **Multi-engine voice recognition utility**
 
-Elograf is a desktop application that provides a graphical interface for multiple speech-to-text engines. Originally designed for [nerd-dictation](https://github.com/ideasman42/nerd-dictation), it now supports multiple STT backends including Whisper Docker, Google Cloud Speech, and OpenAI Realtime API. It runs in your system tray and offers easy control over dictation through an intuitive icon and menu system.
+Elograf is a desktop application that provides a graphical interface for multiple speech-to-text engines. It supports multiple STT backends including Whisper (Local), Whisper Docker, Google Cloud Speech, and OpenAI Realtime API. It runs in your system tray and offers easy control over dictation through an intuitive icon and menu system.
 
 ---
 
@@ -15,7 +15,7 @@ Elograf is a desktop application that provides a graphical interface for multipl
 - **CLI integration**: Control dictation from command line with `--begin`, `--end`, `--toggle`
 
 ### ⚙️ Advanced Configuration
-- **Multiple language models**: Download and manage models from alphacei website
+- **Multiple language models**: Download and manage Vosk models from alphacei website
 - **Model storage**: Install models in user space or system-wide (with polkit authentication)
 - **Custom models**: Add your own model directories with unique names
 - **Audio device selection**: Choose from available PulseAudio input devices
@@ -40,20 +40,9 @@ With PyQt6-DBus installed on KDE, configure system-wide shortcuts for:
 
 ## Speech-to-Text Engines
 
-Elograf supports five different STT engines, each with unique strengths:
+Elograf supports several different STT engines, each with unique strengths:
 
-### 1. **nerd-dictation** (Default)
-Local, privacy-focused CLI tool with multiple backend support.
-
-**Features:**
-- Fully offline operation
-- Multiple model support (Vosk, etc.)
-- Direct system integration
-- No API costs
-
-**Best for:** Privacy-conscious users, offline environments, no-cost operation
-
-### 2. **Whisper (Local)**
+### 1. **Whisper (Local)**
 Native, high-accuracy transcription using OpenAI's Whisper model via `faster-whisper`.
 
 **Features:**
@@ -64,6 +53,17 @@ Native, high-accuracy transcription using OpenAI's Whisper model via `faster-whi
 - Uses Silero VAD for precise speech detection
 
 **Best for:** High accuracy offline transcription without Docker overhead
+
+### 2. **Vosk (Local)**
+Lightweight, native offline transcription using the Vosk library.
+
+**Features:**
+- Fully offline, low resource usage
+- Fast processing on CPU
+- Multiple language models available
+- No API costs
+
+**Best for:** Lightweight local transcription, systems with limited resources
 
 ### 3. **Whisper Docker**
 Docker container running OpenAI's Whisper ASR webservice.
@@ -76,7 +76,7 @@ Docker container running OpenAI's Whisper ASR webservice.
 
 **Best for:** High accuracy offline transcription, Docker-enabled systems
 
-### 3. **Google Cloud Speech-to-Text V2**
+### 4. **Google Cloud Speech-to-Text V2**
 Google's enterprise-grade speech recognition API with gRPC streaming.
 
 **Features:**
@@ -86,7 +86,7 @@ Google's enterprise-grade speech recognition API with gRPC streaming.
 
 **Best for:** Enterprise applications, multi-language support, maximum accuracy
 
-### 4. **OpenAI Realtime API**
+### 5. **OpenAI Realtime API**
 OpenAI's GPT-4o real-time transcription via WebSocket streaming.
 
 **Features:**
@@ -204,11 +204,13 @@ elograf/
 │   ├── stt_factory.py                  # Factory for creating engines
 │   ├── engine_manager.py               # Engine lifecycle and failure recovery
 │   ├── engines/                        # Engine implementations
-│   │   ├── nerd/                       # nerd-dictation
+│   │   ├── vosk_local/                 # Vosk Local
+│   │   ├── whisper_local/              # Whisper Local
 │   │   ├── whisper/                    # Whisper Docker
 │   │   ├── google/                     # Google Cloud Speech
 │   │   ├── openai/                     # OpenAI Realtime
-│   │   └── assemblyai/                 # AssemblyAI Realtime
+│   │   ├── assemblyai/                 # AssemblyAI Realtime
+│   │   └── gemini/                     # Gemini Live
 │   ├── tray_icon.py                    # System tray interface
 │   ├── settings.py                     # Persistent configuration
 │   ├── dialogs.py                      # Configuration dialogs
@@ -246,5 +248,4 @@ GPL-3.0 License - See LICENSE file for details
 ## Links
 
 - [GitHub Repository](https://github.com/papoteur-mga/elograf)
-- [nerd-dictation](https://github.com/ideasman42/nerd-dictation)
 - [Vosk Models (alphacei)](https://alphacephei.com/vosk/models)

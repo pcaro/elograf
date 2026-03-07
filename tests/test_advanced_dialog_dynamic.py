@@ -45,8 +45,7 @@ def test_advanced_dialog_creates_dynamic_tabs(qt_app):
     ]
 
     assert "General" in tab_texts
-    assert "Nerd Dictation" in tab_texts
-    assert "Whisper Docker" in tab_texts
+    assert "Whisper (Docker)" in tab_texts
     assert "Google Cloud" in tab_texts
     assert "OpenAI" in tab_texts
     assert "AssemblyAI" in tab_texts
@@ -62,7 +61,7 @@ def test_advanced_dialog_stores_engine_tabs(qt_app):
     assert hasattr(dialog, 'engine_tabs')
     assert isinstance(dialog.engine_tabs, dict)
 
-    assert "nerd-dictation" in dialog.engine_tabs
+    assert "vosk-local" in dialog.engine_tabs
     assert "whisper-docker" in dialog.engine_tabs
     assert "google-cloud-speech" in dialog.engine_tabs
     assert "openai-realtime" in dialog.engine_tabs
@@ -142,8 +141,8 @@ def test_manage_models_action_updates_path(qt_app, monkeypatch, tmp_path):
     app_settings.load()
 
     dialog = AdvancedUI(app_settings)
-    nerd_tab = dialog.engine_tabs["nerd-dictation"]
-    path_widget = nerd_tab.widgets_map["model_path"]
+    vosk_tab = dialog.engine_tabs["vosk-local"]
+    path_widget = vosk_tab.widgets_map["model_path"]
     path_widget.setText("old")
 
     def fake_launch(parent=None, *_, **__):
@@ -155,7 +154,7 @@ def test_manage_models_action_updates_path(qt_app, monkeypatch, tmp_path):
         fake_launch,
     )
 
-    dialog._handle_model_selection(nerd_tab)
+    dialog._handle_model_selection(vosk_tab)
     assert path_widget.text() == "/tmp/a"
 
 
@@ -163,7 +162,7 @@ def test_custom_ui_edit_persists_changes(qt_app, tmp_path):
     """Editing an existing model should persist updated metadata."""
     from PyQt6.QtCore import QSettings
     from eloGraf.settings import Settings
-    from eloGraf.engines.nerd.ui.dialogs import CustomUI
+    from eloGraf.model_ui.dialogs import CustomUI
 
     backend = QSettings(str(tmp_path / "models.ini"), QSettings.Format.IniFormat)
     backend.clear()
