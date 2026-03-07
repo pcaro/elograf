@@ -68,6 +68,23 @@ class AdvancedUI(QDialog):
         self._on_stt_engine_changed(self.ui.stt_engine_cb.currentIndex())
 
         self.ui.stt_engine_cb.currentIndexChanged.connect(self._on_stt_engine_changed)
+        self.ui.interface_language_cb.currentIndexChanged.connect(self._on_language_changed)
+        self.language_changed_callback = None
+
+    def _on_language_changed(self, index: int) -> None:
+        lang = self.ui.interface_language_cb.itemData(index)
+        if lang:
+            from eloGraf.elograf import load_translations
+            from PyQt6.QtWidgets import QApplication
+            load_translations(QApplication.instance(), lang)
+            self.ui.retranslateUi(self)
+            
+            # Re-apply info icons since layout/texts might have been reset
+            self._add_info_icons_to_general_tab()
+            
+            # Call callback to let tray icon update itself
+            if hasattr(self, 'language_changed_callback') and self.language_changed_callback:
+                self.language_changed_callback()
 
     def _add_info_icons_to_general_tab(self) -> None:
         """Add info icons to labels in the General tab that have tooltips."""

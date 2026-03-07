@@ -67,8 +67,8 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.stopAction.triggered.connect(self.end)
         self.toggleAction.setEnabled(True)
         self.stopAction.setEnabled(False)
-        configAction = menu.addAction(self.tr("Configuration"))
-        exitAction = menu.addAction(self.tr("Exit"))
+        self.configAction = menu.addAction(self.tr("Configuration"))
+        self.exitAction = menu.addAction(self.tr("Exit"))
         self.setContextMenu(menu)
 
         if self.direct_click_enabled:
@@ -76,8 +76,8 @@ class SystemTrayIcon(QSystemTrayIcon):
 
         self.state_machine = DictationStateMachine()
         self.state_machine.on_state = lambda state: self._apply_state(state.icon_state, state.dictating, state.suspended)
-        exitAction.triggered.connect(self.exit)
-        configAction.triggered.connect(self.config)
+        self.exitAction.triggered.connect(self.exit)
+        self.configAction.triggered.connect(self.config)
         self.nomicro = QIcon.fromTheme("microphone-sensitivity-muted")
         if self.nomicro.isNull():
             self.nomicro = QIcon(":/icons/elograf/24/nomicro.png")
@@ -128,6 +128,18 @@ class SystemTrayIcon(QSystemTrayIcon):
         if start:
             self.dictate()
             self.dictating = True
+
+    def retranslateUi(self) -> None:
+        """Update texts of tray menu items after language change."""
+        self.stopAction.setText(self.tr("Stop dictation"))
+        self.configAction.setText(self.tr("Configuration"))
+        self.exitAction.setText(self.tr("Exit"))
+        if self.suspended:
+            self.toggleAction.setText(self.tr("Resume dictation"))
+        elif self.dictating:
+            self.toggleAction.setText(self.tr("Suspend dictation"))
+        else:
+            self.toggleAction.setText(self.tr("Start dictation"))
 
     def _apply_state(self, icon_state: IconState, dictating: bool, suspended: bool) -> None:
         self.dictating = dictating
@@ -407,6 +419,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def show_config_dialog(self) -> None:
         adv_window = AdvancedUI(self.settings, reset_context_callback=self._handle_reset_context)
+        adv_window.language_changed_callback = self.retranslateUi
 
         # General settings
         adv_window.ui.precommand.setText(self.settings.precommand)
@@ -418,6 +431,11 @@ class SystemTrayIcon(QSystemTrayIcon):
         if index >= 0:
             adv_window.ui.deviceName.setCurrentIndex(index)
         adv_window.ui.direct_click_cb.setChecked(self.settings.directClick)
+        
+        # Interface Language
+        index = adv_window.ui.interface_language_cb.findData(self.settings.interfaceLanguage)
+        if index >= 0:
+            adv_window.ui.interface_language_cb.setCurrentIndex(index)
 
         # Shortcuts
         adv_window.beginShortcut.setKeySequence(self.settings.beginShortcut)
@@ -553,6 +571,11 @@ class SystemTrayIcon(QSystemTrayIcon):
             logging.info(f"Final deviceName to save: {self.settings.deviceName}")
 
             self.settings.directClick = adv_window.ui.direct_click_cb.isChecked()
+            
+            # Interface Language
+            lang_data = adv_window.ui.interface_language_cb.currentData()
+            if lang_data:
+                self.settings.interfaceLanguage = lang_data
 
             # Shortcuts
             self.settings.beginShortcut = adv_window.beginShortcut.keySequence().toString()

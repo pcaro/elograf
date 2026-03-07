@@ -216,34 +216,52 @@ def handle_cli_commands_and_exit_if_needed(args: argparse.Namespace, ipc: IPCMan
         sys.exit(1)
 
 
+def load_translations(app: QApplication, language_code: str) -> None:
+    """Load and apply translations dynamically."""
+    # Remove existing translators if present
+    if hasattr(app, '_qt_translator'):
+        app.removeTranslator(app._qt_translator)
+    if hasattr(app, '_app_translator'):
+        app.removeTranslator(app._app_translator)
+
+    LOCAL_DIR = Path(__file__).resolve().parent
+    path = str(LOCAL_DIR / "translations")
+
+    qtTranslator = QTranslator()
+    # Handle language codes like 'en', 'es', or locales like 'es_ES'
+    lang_base = language_code.split('_')[0] if '_' in language_code else language_code
+
+    if qtTranslator.load(f"qt_{language_code}", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) or \
+       qtTranslator.load(f"qt_{lang_base}", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)):
+        app.installTranslator(qtTranslator)
+        app._qt_translator = qtTranslator
+
+    appTranslator = QTranslator()
+    
+    # Try specific locale first, then generic
+    loaded = appTranslator.load(f"elograf_{language_code}", path)
+    if not loaded and lang_base != language_code:
+        loaded = appTranslator.load(f"elograf_{lang_base}", path)
+
+    if loaded:
+        app.installTranslator(appTranslator)
+        app._app_translator = appTranslator
+    elif language_code != "en" and lang_base != "en":
+        # English is the default, so it's okay if 'en' is not found
+        logging.warning("No translation file found for language '%s'", language_code)
+
+
 def setup_application(app: QApplication) -> None:
     """Configure and prepare the QApplication instance."""
     app.setDesktopFileName("Elograf")
     # don't close application when closing setting window
     app.setQuitOnLastWindowClosed(False)
-    LOCAL_DIR = Path(__file__).resolve().parent
-    locale_name = QLocale.system().name()  # e.g., es_ES
-    locale_lang = locale_name.split('_')[0]   # e.g., es
 
-    qtTranslator = QTranslator()
-    if qtTranslator.load(
-        "qt_" + locale_name,
-        QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath),
-    ):
-        app.installTranslator(qtTranslator)
-
-    appTranslator = QTranslator()
-    path = str(LOCAL_DIR / "translations")
-
-    # Try specific locale first (e.g., elograf_es_ES.qm), then generic (elograf_es.qm)
-    loaded = appTranslator.load("elograf_" + locale_name, path)
-    if not loaded:
-        loaded = appTranslator.load("elograf_" + locale_lang, path)
-
-    if loaded:
-        app.installTranslator(appTranslator)
-    else:
-        logging.warning("No translation file found for locale '%s' or language '%s'", locale_name, locale_lang)
+    settings = Settings()
+    settings.load()
+    lang = getattr(settings, 'interfaceLanguage', 'en')
+    
+    load_translations(app, lang)
 
 
 def run_application(app: QApplication, args: argparse.Namespace, ipc: IPCManager) -> None:

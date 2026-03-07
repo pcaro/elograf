@@ -52,6 +52,7 @@ class Settings:
         self.resumeShortcut: str = ""
         self.toggleShortcut: str = ""
         self.sttEngine: str = "vosk-local"
+        self.interfaceLanguage: str = "en"
         self.whisperModel: str = "base"
         self.whisperLanguage: str = ""
         self.whisperPort: int = 9000
@@ -136,6 +137,7 @@ class Settings:
         self.suspendShortcut = backend.value("SuspendShortcut", "", type=str)
         self.resumeShortcut = backend.value("ResumeShortcut", "", type=str)
         self.toggleShortcut = backend.value("ToggleShortcut", "", type=str)
+        self.interfaceLanguage = backend.value("InterfaceLanguage", "en", type=str)
         self.sttEngine = backend.value("STTEngine", "vosk-local", type=str)
         self.sttEngine = normalize_engine_name(self.sttEngine)
         self.whisperModel = backend.value("WhisperModel", "base", type=str)
@@ -256,6 +258,7 @@ class Settings:
         self._set_or_remove("SuspendShortcut", self.suspendShortcut)
         self._set_or_remove("ResumeShortcut", self.resumeShortcut)
         self._set_or_remove("ToggleShortcut", self.toggleShortcut)
+        backend.setValue("InterfaceLanguage", self.interfaceLanguage)
         backend.setValue("STTEngine", self.sttEngine)
         backend.setValue("WhisperModel", self.whisperModel)
         self._set_or_remove("WhisperLanguage", self.whisperLanguage)
