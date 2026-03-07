@@ -31,7 +31,7 @@ from PyQt6.QtWidgets import (
 
 import eloGraf.advanced as advanced  # type: ignore
 
-from eloGraf.ui_generator import generate_settings_tab, read_settings_from_tab
+from eloGraf.ui_generator import generate_settings_tab, read_settings_from_tab, format_tooltip
 from eloGraf.engine_settings_registry import (
     get_all_engine_ids,
     get_engine_settings_class,
@@ -97,8 +97,7 @@ class AdvancedUI(QDialog):
                 
                 info_icon = QLabel("ⓘ")
                 info_icon.setStyleSheet("color: #3498db; font-weight: bold;")
-                # Force white text on dark background in tooltip as requested
-                info_icon.setToolTip(f"<html><body style='color: white; background-color: #333333; padding: 2px;'>{tooltip_text}</body></html>")
+                info_icon.setToolTip(format_tooltip(tooltip_text))
                 
                 h_layout.addWidget(widget)
                 h_layout.addWidget(info_icon)
@@ -122,7 +121,7 @@ class AdvancedUI(QDialog):
             
             info_icon = QLabel("ⓘ")
             info_icon.setStyleSheet("color: #3498db; font-weight: bold;")
-            info_icon.setToolTip(f"<html><body style='color: black;'>{tooltip_text}</body></html>")
+            info_icon.setToolTip(format_tooltip(tooltip_text))
             
             h_layout.addWidget(stt_label)
             h_layout.addWidget(info_icon)
