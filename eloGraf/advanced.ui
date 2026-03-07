@@ -83,70 +83,34 @@
        </item>
        <item>
         <layout class="QGridLayout" name="general_grid_layout" columnstretch="0,2">
-         <item row="0" column="1">
-          <widget class="QLineEdit" name="precommand" />
-         </item>
-         <item row="12" column="1">
-          <widget class="QComboBox" name="tool_cb">
-           <property name="currentText">
-            <string>XDOTOOL</string>
-           </property>
-           <item>
-            <property name="text">
-             <string>XDOTOOL</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>DOTOOL</string>
-            </property>
-           </item>
-          </widget>
-         </item>
-         <item row="3" column="1">
-          <widget class="QComboBox" name="deviceName">
-           <property name="currentText">
-            <string />
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="1">
-          <widget class="QLineEdit" name="env" />
-         </item>
-         <item row="12" column="0">
-          <widget class="QLabel" name="label_13">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_interface_language">
            <property name="toolTip">
-            <string>&lt;b&gt;Input Simulation Tool&lt;/b&gt;&lt;br&gt;Method for typing transcribed text.&lt;br&gt;&lt;br&gt;&lt;b&gt;XDOTOOL:&lt;/b&gt; Simulates X11 keyboard events&lt;br&gt;- More compatible with all applications&lt;br&gt;- Requires xdotool installed&lt;br&gt;&lt;br&gt;&lt;b&gt;DOTOOL:&lt;/b&gt; Uses /dev/uinput directly&lt;br&gt;- Faster and more reliable&lt;br&gt;- Requires root or udev configuration</string>
+            <string>&lt;b&gt;Interface Language&lt;/b&gt;&lt;br&gt;Language for the application interface.</string>
            </property>
            <property name="text">
-            <string>Input simulate tool</string>
+            <string>Interface language</string>
            </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="interface_language_cb">
+           <item>
+            <property name="text">
+             <string>English</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Español</string>
+            </property>
+           </item>
           </widget>
          </item>
          <item row="1" column="1">
-          <widget class="QLineEdit" name="postcommand" />
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="label_12">
-           <property name="toolTip">
-            <string>&lt;b&gt;Environment Variables&lt;/b&gt;&lt;br&gt;Environment variables for the dictation process.&lt;br&gt;&lt;br&gt;&lt;i&gt;Format:&lt;/i&gt; VAR1=value1, VAR2=value2&lt;br&gt;&lt;i&gt;Example:&lt;/i&gt; LD_LIBRARY_PATH=/opt/lib</string>
-           </property>
-           <property name="text">
-            <string>Environment variables</string>
-           </property>
-          </widget>
+          <widget class="QLineEdit" name="precommand" />
          </item>
          <item row="1" column="0">
-          <widget class="QLabel" name="label_11">
-           <property name="toolTip">
-            <string>&lt;b&gt;Post-command&lt;/b&gt;&lt;br&gt;Shell command to execute after dictation stops.&lt;br&gt;&lt;br&gt;&lt;i&gt;Typical use:&lt;/i&gt; Restore environment, send notifications, etc.&lt;br&gt;&lt;i&gt;Example:&lt;/i&gt; notify-send "Dictation ended"</string>
-           </property>
-           <property name="text">
-            <string>Postcommand</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="0">
           <widget class="QLabel" name="label_10">
            <property name="toolTip">
             <string>&lt;b&gt;Pre-command&lt;/b&gt;&lt;br&gt;Shell command to execute before starting dictation.&lt;br&gt;&lt;br&gt;&lt;i&gt;Typical use:&lt;/i&gt; Prepare environment, change keyboard layout, etc.&lt;br&gt;&lt;i&gt;Example:&lt;/i&gt; setxkbmap us</string>
@@ -156,7 +120,40 @@
            </property>
           </widget>
          </item>
+         <item row="2" column="1">
+          <widget class="QLineEdit" name="postcommand" />
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_11">
+           <property name="toolTip">
+            <string>&lt;b&gt;Post-command&lt;/b&gt;&lt;br&gt;Shell command to execute after dictation stops.&lt;br&gt;&lt;br&gt;&lt;i&gt;Typical use:&lt;/i&gt; Restore environment, send notifications, etc.&lt;br&gt;&lt;i&gt;Example:&lt;/i&gt; notify-send "Dictation ended"</string>
+           </property>
+           <property name="text">
+            <string>Postcommand</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QLineEdit" name="env" />
+         </item>
          <item row="3" column="0">
+          <widget class="QLabel" name="label_12">
+           <property name="toolTip">
+            <string>&lt;b&gt;Environment Variables&lt;/b&gt;&lt;br&gt;Environment variables for the dictation process.&lt;br&gt;&lt;br&gt;&lt;i&gt;Format:&lt;/i&gt; VAR1=value1, VAR2=value2&lt;br&gt;&lt;i&gt;Example:&lt;/i&gt; LD_LIBRARY_PATH=/opt/lib</string>
+           </property>
+           <property name="text">
+            <string>Environment variables</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QComboBox" name="deviceName">
+           <property name="currentText">
+            <string />
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
           <widget class="QLabel" name="label">
            <property name="toolTip">
             <string>&lt;b&gt;Audio Input Device&lt;/b&gt;&lt;br&gt;PulseAudio source device for recording.&lt;br&gt;&lt;br&gt;&lt;i&gt;To list available devices:&lt;/i&gt;&lt;br&gt;&lt;code&gt;pactl list sources&lt;/code&gt;&lt;br&gt;&lt;br&gt;Use the identifier after "Name:" in the output.</string>

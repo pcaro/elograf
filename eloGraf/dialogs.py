@@ -64,6 +64,10 @@ class AdvancedUI(QDialog):
         # Add info icons to General tab labels
         self._add_info_icons_to_general_tab()
 
+        # Initialize Interface Language combobox data
+        self.ui.interface_language_cb.setItemData(0, "en")
+        self.ui.interface_language_cb.setItemData(1, "es")
+
         # Synchronize tabs with current selection
         self._on_stt_engine_changed(self.ui.stt_engine_cb.currentIndex())
 
