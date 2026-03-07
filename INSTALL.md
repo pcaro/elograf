@@ -39,6 +39,7 @@ uv run elograf
 
 **Engine-Specific Dependencies:**
 - **nerd-dictation**: Must be installed separately (not included)
+- **Whisper (Local)**: `faster-whisper`, `silero-vad`, `torch`, `torchaudio`
 - **Whisper Docker**: `requests` (auto-installed), Docker
 - **Google Cloud Speech**: `google-cloud-speech` (auto-installed)
 - **OpenAI Realtime**: `websocket-client` (auto-installed)

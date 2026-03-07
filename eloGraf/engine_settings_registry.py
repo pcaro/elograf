@@ -44,6 +44,11 @@ ENGINES: Dict[str, Dict[str, str]] = {
         "class": "VoskLocalSettings",
         "display_name": "Vosk (Local)",
     },
+    "whisper-local": {
+        "module": "eloGraf.engines.whisper_local.settings",
+        "class": "WhisperLocalSettings",
+        "display_name": "Whisper (Local)",
+    },
 }
 
 

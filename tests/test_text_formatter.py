@@ -68,4 +68,21 @@ def test_format_method_applies_all():
     
     assert result.startswith("What")  # Capitalizado
     assert "it. Hello" in result  # Segunda oración capitalizada (it no se capitaliza)
-    assert result.endswith("?")  # Pregunta detectada
+    assert result.endswith("? ")  # Pregunta detectada Y ESPACIO final
+
+
+def test_ensure_trailing_space():
+    """Debe añadir un espacio si termina en puntuación."""
+    from eloGraf.text_formatter import TextFormatter
+    
+    formatter = TextFormatter()
+    
+    assert formatter.ensure_trailing_space("Hello.") == "Hello. "
+    assert formatter.ensure_trailing_space("Hello!") == "Hello! "
+    assert formatter.ensure_trailing_space("Hello?") == "Hello? "
+    
+    # No debe añadir si ya hay espacio
+    assert formatter.ensure_trailing_space("Hello. ") == "Hello. "
+    
+    # No debe añadir si no hay puntuación
+    assert formatter.ensure_trailing_space("Hello") == "Hello"

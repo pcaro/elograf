@@ -40,7 +40,7 @@ With PyQt6-DBus installed on KDE, configure system-wide shortcuts for:
 
 ## Speech-to-Text Engines
 
-Elograf supports four different STT engines, each with unique strengths:
+Elograf supports five different STT engines, each with unique strengths:
 
 ### 1. **nerd-dictation** (Default)
 Local, privacy-focused CLI tool with multiple backend support.
@@ -53,7 +53,19 @@ Local, privacy-focused CLI tool with multiple backend support.
 
 **Best for:** Privacy-conscious users, offline environments, no-cost operation
 
-### 2. **Whisper Docker**
+### 2. **Whisper (Local)**
+Native, high-accuracy transcription using OpenAI's Whisper model via `faster-whisper`.
+
+**Features:**
+- Fully offline, runs natively (no Docker required)
+- High accuracy with context-aware processing
+- Configurable models (tiny, base, small, medium, large-v3)
+- Automatic context reset and manual "Reset Context" support
+- Uses Silero VAD for precise speech detection
+
+**Best for:** High accuracy offline transcription without Docker overhead
+
+### 3. **Whisper Docker**
 Docker container running OpenAI's Whisper ASR webservice.
 
 **Features:**
