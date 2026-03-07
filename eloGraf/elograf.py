@@ -133,7 +133,7 @@ class ColoredFormatter(logging.Formatter):
     FORMAT = "%(message)s"
 
     FORMATS = {
-        logging.DEBUG: GREY + "[%(name)s] " + FORMAT + RESET,
+        logging.DEBUG: GREY + FORMAT + RESET,
         logging.INFO: RESET + FORMAT + RESET,  # Standard color for INFO
         logging.WARNING: YELLOW + FORMAT + RESET,
         logging.ERROR: RED + FORMAT + RESET,
