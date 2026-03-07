@@ -131,7 +131,7 @@ class EngineManager:
         engine_type = self.active_engine_type
         engine_settings = self._settings.get_engine_settings(engine_type)
 
-        logging.info("Creating %s STT engine", engine_type)
+        logging.debug("Creating %s STT engine", engine_type)
 
         controller, runner = create_stt_engine(engine_type, settings=engine_settings)
 

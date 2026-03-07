@@ -108,7 +108,7 @@ class WhisperLocalRunner:
             # Once loaded, start the runner (capture and inference threads)
             self._runner.start()
             self._controller.transition_to("ready")
-            logging.info("Whisper engine started and ready")
+            logging.debug("Whisper engine started and ready")
             
         except Exception as exc:
             logging.exception("Failed to load Whisper model")

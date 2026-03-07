@@ -43,7 +43,7 @@ def create_stt_engine(engine_type: str = "vosk-local", **kwargs) -> Tuple[STTCon
     settings_obj = _instantiate_settings(plugin, **kwargs)
 
     controller, runner = plugin.create_controller_runner(settings_obj)
-    logging.info("Created %s STT engine", plugin.name)
+    logging.debug("Created %s STT engine", plugin.name)
     return controller, runner
 
 

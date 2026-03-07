@@ -183,7 +183,7 @@ class IPCDBus(IPCManager):
 
         self._kglobalaccel_available = iface.isValid()
         if self._kglobalaccel_available:
-            logging.info("KGlobalAccel is available for global shortcuts")
+            logging.debug("KGlobalAccel is available for global shortcuts")
         else:
             logging.debug("KGlobalAccel not available - global shortcuts disabled")
 

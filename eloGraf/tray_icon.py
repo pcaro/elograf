@@ -308,7 +308,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def exit(self) -> None:
         """Clean exit: stop dictation, cleanup IPC, and exit"""
-        logging.info("Exiting Elograf...")
+        logging.debug("Exiting Elograf...")
         if self.dictating:
             self.stop_dictate()
         # Cleanup resources

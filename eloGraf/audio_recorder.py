@@ -428,7 +428,7 @@ class AudioRecorder:
         else:
             raise ValueError(f"Unknown audio backend: {backend}")
 
-        logging.info(f"AudioRecorder initialized with {backend} backend")
+        logging.debug(f"AudioRecorder initialized with {backend} backend")
 
     def record_chunk(self, duration: float) -> bytes:
         """

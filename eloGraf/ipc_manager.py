@@ -94,7 +94,7 @@ def create_ipc_manager(app_id: str = "elograf") -> IPCManager:
         if bus.isConnected():
             # D-Bus is available, use it
             from eloGraf.ipc_dbus import IPCDBus
-            logging.info("Using D-Bus for inter-process communication")
+            logging.debug("Using D-Bus for inter-process communication")
             return IPCDBus(app_id)
         else:
             logging.info("D-Bus session bus not available, falling back to QLocalServer")

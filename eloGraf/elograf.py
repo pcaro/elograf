@@ -100,7 +100,7 @@ def setup_signal_handlers(tray_icon):
     def signal_handler(signum, frame):
         """Set exit flag when signal is received"""
         sig_name = signal.Signals(signum).name
-        logging.info(f"Received signal {sig_name}, will exit on next timer check...")
+        logging.debug(f"Received signal {sig_name}, will exit on next timer check...")
         tray_icon._should_exit = True
 
     # Register signal handlers
@@ -112,7 +112,7 @@ def setup_signal_handlers(tray_icon):
     # Timer to periodically check if we should exit
     def check_exit_flag():
         if tray_icon._should_exit:
-            logging.info("Exiting due to signal...")
+            logging.debug("Exiting due to signal...")
             tray_icon.exit()
 
     timer = QTimer()
@@ -166,6 +166,13 @@ def setup_logging(args: argparse.Namespace) -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(ColoredFormatter())
     root_logger.addHandler(handler)
+    
+    # Silence excessively verbose third-party loggers unless debugging is explicitly requested
+    if numeric_level > logging.DEBUG:
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
+        logging.getLogger("faster_whisper").setLevel(logging.WARNING)
 
 
 def handle_cli_commands_and_exit_if_needed(args: argparse.Namespace, ipc: IPCManager) -> None:
@@ -268,16 +275,16 @@ def run_application(app: QApplication, args: argparse.Namespace, ipc: IPCManager
     """Run the main application event loop."""
     ipc_backend = "D-Bus" if ipc.supports_global_shortcuts() else "Local Sockets"
     logging.info(f"Elograf started (using {ipc_backend})")
-    logging.info("Available commands:")
-    logging.info("  elograf --begin         : Start dictation")
-    logging.info("  elograf --end           : Stop dictation")
-    logging.info("  elograf --suspend       : Suspend dictation")
-    logging.info("  elograf --resume        : Resume dictation")
-    logging.info("  elograf --exit          : Exit application")
-    logging.info("  elograf --list-models   : List available models")
-    logging.info("  elograf --set-model M   : Set active model to M")
-    logging.info("  elograf --list-engines  : List available STT engines")
-    logging.info("  elograf --use-engine E  : Use STT engine E for this session")
+    logging.debug("Available commands:")
+    logging.debug("  elograf --begin         : Start dictation")
+    logging.debug("  elograf --end           : Stop dictation")
+    logging.debug("  elograf --suspend       : Suspend dictation")
+    logging.debug("  elograf --resume        : Resume dictation")
+    logging.debug("  elograf --exit          : Exit application")
+    logging.debug("  elograf --list-models   : List available models")
+    logging.debug("  elograf --set-model M   : Set active model to M")
+    logging.debug("  elograf --list-engines  : List available STT engines")
+    logging.debug("  elograf --use-engine E  : Use STT engine E for this session")
 
     command = choose_ipc_command(args)
     w = QWidget()

@@ -166,7 +166,7 @@ class AudioPipeline:
     
     def _run(self) -> None:
         """Main loop for audio capture and VAD."""
-        logging.info("AudioPipeline thread started")
+        logging.debug("AudioPipeline thread started")
         
         # Track speech timing
         speech_start_time = None
@@ -212,4 +212,4 @@ class AudioPipeline:
                 logging.exception("Error in AudioPipeline loop")
                 time.sleep(0.1)
         
-        logging.info("AudioPipeline thread stopped")
+        logging.debug("AudioPipeline thread stopped")

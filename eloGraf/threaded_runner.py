@@ -69,7 +69,7 @@ class ThreadedInferenceRunner:
         )
         self._inference_thread.start()
         
-        logging.info("ThreadedInferenceRunner started")
+        logging.debug("ThreadedInferenceRunner started")
         return True
     
     def stop(self) -> None:
@@ -83,7 +83,7 @@ class ThreadedInferenceRunner:
         if self._inference_thread and self._inference_thread.is_alive():
             self._inference_thread.join(timeout=3.0)
         
-        logging.info("ThreadedInferenceRunner stopped")
+        logging.debug("ThreadedInferenceRunner stopped")
     
     def suspend(self) -> None:
         """Suspend audio processing."""
@@ -111,23 +111,22 @@ class ThreadedInferenceRunner:
     
     def _inference_loop(self) -> None:
         """Main loop for inference thread (consumer)."""
-        logging.info("Inference thread started")
-        
+        logging.debug("Inference thread started")
+
         while not self._stop_event.is_set():
             try:
                 # Wait for audio with timeout to check stop_event periodically
                 audio = self._inference_queue.get(timeout=0.5)
             except queue.Empty:
                 continue
-            
+
             try:
                 self._process_audio(audio)
             except Exception as exc:
                 logging.exception("Inference failed")
                 self._controller.emit_error(f"Transcription error: {exc}")
-        
-        logging.info("Inference thread stopped")
-    
+
+        logging.debug("Inference thread stopped")    
     def _process_audio(self, audio: bytes) -> None:
         """Process single audio segment.
         

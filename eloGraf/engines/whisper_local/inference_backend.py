@@ -66,7 +66,7 @@ class ContextManager:
         self._context = ""
         self._reset_count += 1
         self._last_update = time.time()
-        logging.info(f"Context reset (total resets: {self._reset_count})")
+        logging.debug(f"Context reset (total resets: {self._reset_count})")
     
     def _should_auto_reset(self) -> bool:
         """Checks if enough time has passed for auto-reset."""
