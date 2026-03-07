@@ -81,14 +81,53 @@ class AdvancedUI(QDialog):
             from eloGraf.elograf import load_translations
             from PyQt6.QtWidgets import QApplication
             load_translations(QApplication.instance(), lang)
-            self.ui.retranslateUi(self)
-            
-            # Re-apply info icons since layout/texts might have been reset
-            self._add_info_icons_to_general_tab()
+            self.retranslateUi()
             
             # Call callback to let tray icon update itself
             if hasattr(self, 'language_changed_callback') and self.language_changed_callback:
                 self.language_changed_callback()
+
+    def retranslateUi(self) -> None:
+        """Retranslate all UI components including dynamic ones."""
+        # Block signals to avoid recursive or unwanted calls during re-population
+        self.ui.stt_engine_cb.blockSignals(True)
+        self.ui.interface_language_cb.blockSignals(True)
+        
+        try:
+            # Save current selections
+            current_engine = self.ui.stt_engine_cb.currentData()
+            current_lang = self.ui.interface_language_cb.currentData()
+
+            # Retranslate static UI from generated class
+            self.ui.retranslateUi(self)
+
+            # Re-populate engine dropdown (it was cleared or messed up by retranslateUi)
+            self._populate_engine_dropdown()
+            
+            # Restore engine selection
+            index = self.ui.stt_engine_cb.findData(current_engine)
+            if index >= 0:
+                self.ui.stt_engine_cb.setCurrentIndex(index)
+
+            # Restore language selection and data
+            self.ui.interface_language_cb.setItemData(0, "en")
+            self.ui.interface_language_cb.setItemData(1, "es")
+            index = self.ui.interface_language_cb.findData(current_lang)
+            if index >= 0:
+                self.ui.interface_language_cb.setCurrentIndex(index)
+
+            # Re-apply info icons since layout/texts might have been reset
+            self._add_info_icons_to_general_tab()
+
+            # Update tab texts
+            for engine_id, tab in self.engine_tabs.items():
+                idx = self.ui.tabWidget.indexOf(tab)
+                if idx >= 0:
+                    display_name = get_engine_display_name(engine_id)
+                    self.ui.tabWidget.setTabText(idx, display_name)
+        finally:
+            self.ui.stt_engine_cb.blockSignals(False)
+            self.ui.interface_language_cb.blockSignals(False)
 
     def _add_info_icons_to_general_tab(self) -> None:
         """Add info icons to labels in the General tab that have tooltips."""
@@ -227,29 +266,33 @@ class AdvancedUI(QDialog):
         if isinstance(path_widget, QLineEdit):
             path_widget.setText(location)
 
-    def _on_stt_engine_changed(self, _index: int):
+    def _on_stt_engine_changed(self, index: int):
         """Handle engine selection change."""
-        # Get engine ID from dropdown data
-        engine = self.ui.stt_engine_cb.currentData()
+        if index < 0:
+            return
+            
+        # Get engine ID from dropdown data (safer to use itemData with index)
+        engine = self.ui.stt_engine_cb.itemData(index)
         if not engine:
             return
 
-        logging.debug(f"STT Engine changed to: {engine}")
-
-        # Switch to the appropriate tab
-        if engine in self.engine_tabs:
-            self.ui.tabWidget.setCurrentWidget(self.engine_tabs[engine])
+        logging.debug(f"STT Engine changed to: {engine} (at index {index})")
 
         # Enable/disable tabs based on selected engine
         # "General" tab (index 0) must always be enabled
         self.ui.tabWidget.setTabEnabled(0, True)
         
+        target_tab = self.engine_tabs.get(engine)
+        
         for engine_name, tab in self.engine_tabs.items():
-            enabled = (engine_name == engine)
             idx = self.ui.tabWidget.indexOf(tab)
             if idx >= 0:
-                self.ui.tabWidget.setTabEnabled(idx, enabled)
-                logging.debug(f"Tab {engine_name} (idx {idx}) enabled: {enabled}")
+                is_active = (engine_name == engine)
+                self.ui.tabWidget.setTabEnabled(idx, is_active)
+                
+        # Switch to the appropriate tab if it exists
+        if target_tab:
+            self.ui.tabWidget.setCurrentWidget(target_tab)
 
     def _add_shortcuts_config(self) -> None:
         # This is a bit of a hack, but it's the easiest way to add the shortcuts

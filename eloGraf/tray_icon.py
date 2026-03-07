@@ -574,6 +574,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             
             # Interface Language
             lang_data = adv_window.ui.interface_language_cb.currentData()
+            logging.info(f"Saving interface language: {lang_data}")
             if lang_data:
                 self.settings.interfaceLanguage = lang_data
 
@@ -586,12 +587,15 @@ class SystemTrayIcon(QSystemTrayIcon):
 
             # STT Engine
             engine_data = adv_window.ui.stt_engine_cb.currentData()
-            self.settings.sttEngine = engine_data if engine_data else "vosk-local"
+            selected_engine = engine_data if engine_data else "vosk-local"
+            self.settings.sttEngine = selected_engine
 
             # Engine-specific settings from dynamic tabs
             from eloGraf.engine_settings_registry import get_all_engine_ids
 
-            selected_engine = self.settings.sttEngine
+            # Store globals to restore them after engine-specific updates
+            saved_device = self.settings.deviceName
+            saved_lang = self.settings.interfaceLanguage
 
             for engine_id in get_all_engine_ids():
                 engine_settings = adv_window.get_engine_settings_dataclass(engine_id)
@@ -599,9 +603,13 @@ class SystemTrayIcon(QSystemTrayIcon):
                     continue
                 try:
                     self.settings.update_from_dataclass(engine_settings)
-                    self.settings.sttEngine = selected_engine
                 except Exception as exc:  # pragma: no cover - defensive
                     logging.debug("Failed to update settings for %s: %s", engine_id, exc)
+            
+            # Restore globals that might have been overwritten by engine defaults
+            self.settings.sttEngine = selected_engine
+            self.settings.deviceName = saved_device
+            self.settings.interfaceLanguage = saved_lang
 
             self.settings.save()
             self.settings.load()

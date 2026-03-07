@@ -91,9 +91,13 @@ def get_engine_display_name(engine_id: str) -> str:
     Returns:
         Human-readable display name
     """
+    from PyQt6.QtCore import QCoreApplication
+    _translate = QCoreApplication.translate
+    
     engine = ENGINES.get(engine_id)
     if engine:
-        return engine.get("display_name", engine_id)
+        display_name = engine.get("display_name", engine_id)
+        return _translate("EngineRegistry", display_name)
     return engine_id
 
 
