@@ -1146,4 +1146,167 @@ Se usa para añadir una coma, o parar completamente el dictado según retardos p
       <translation>Gestionar modelos...</translation>
     </message>
   </context>
+  <context>
+    <name>WhisperLocalSettings</name>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Model Size</source>
+      <translation>Tamaño del modelo</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>&lt;b&gt;Whisper Model Size&lt;/b&gt;&lt;br&gt;&lt;br&gt;Select the model based on accuracy vs speed trade-off:&lt;br&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;tiny:&lt;/b&gt; Fastest, but least accurate (~39 MB)&lt;/li&gt;&lt;li&gt;&lt;b&gt;base:&lt;/b&gt; Good balance for most CPUs (~74 MB)&lt;/li&gt;&lt;li&gt;&lt;b&gt;small:&lt;/b&gt; Recommended for decent accuracy on modern CPUs (~244 MB)&lt;/li&gt;&lt;li&gt;&lt;b&gt;medium:&lt;/b&gt; Requires a powerful CPU or GPU (~769 MB)&lt;/li&gt;&lt;li&gt;&lt;b&gt;large-v3:&lt;/b&gt; Maximum accuracy, requires GPU with 8GB+ VRAM (~1.5 GB)&lt;/li&gt;&lt;/ul&gt;</source>
+      <translation>&lt;b&gt;Tamaño del modelo Whisper&lt;/b&gt;&lt;br&gt;&lt;br&gt;Seleccione el modelo según el equilibrio entre precisión y velocidad:&lt;br&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;tiny:&lt;/b&gt; Más rápido, pero menos preciso (~39 MB)&lt;/li&gt;&lt;li&gt;&lt;b&gt;base:&lt;/b&gt; Buen equilibrio para la mayoría de CPUs (~74 MB)&lt;/li&gt;&lt;li&gt;&lt;b&gt;small:&lt;/b&gt; Recomendado para buena precisión en CPUs modernas (~244 MB)&lt;/li&gt;&lt;li&gt;&lt;b&gt;medium:&lt;/b&gt; Requiere CPU potente o GPU (~769 MB)&lt;/li&gt;&lt;li&gt;&lt;b&gt;large-v3:&lt;/b&gt; Máxima precisión, requiere GPU con 8GB+ VRAM (~1.5 GB)&lt;/li&gt;&lt;/ul&gt;</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Fastest, but least accurate (~39 MB)</source>
+      <translation>Más rápido, pero menos preciso (~39 MB)</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Good balance for most CPUs (~74 MB)</source>
+      <translation>Buen equilibrio para la mayoría de CPUs (~74 MB)</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Recommended for decent accuracy on modern CPUs (~244 MB)</source>
+      <translation>Recomendado para buena precisión en CPUs modernas (~244 MB)</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Requires a powerful CPU or GPU (~769 MB)</source>
+      <translation>Requiere CPU potente o GPU (~769 MB)</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Maximum accuracy, requires GPU with 8GB+ VRAM (~1.5 GB)</source>
+      <translation>Máxima precisión, requiere GPU con 8GB+ VRAM (~1.5 GB)</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Language</source>
+      <translation>Idioma</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>&lt;b&gt;Language Code&lt;/b&gt;&lt;br&gt;&lt;br&gt;ISO 639-1 language code for transcription.&lt;br&gt;&lt;br&gt;&lt;i&gt;Examples:&lt;/i&gt; en, es, fr, de, it&lt;br&gt;&lt;i&gt;Leave empty or use &apos;auto&apos; for automatic detection&lt;/i&gt;</source>
+      <translation>&lt;b&gt;Código de idioma&lt;/b&gt;&lt;br&gt;&lt;br&gt;Código de idioma ISO 639-1 para transcripción.&lt;br&gt;&lt;br&gt;&lt;i&gt;Ejemplos:&lt;/i&gt; en, es, fr, de, it&lt;br&gt;&lt;i&gt;Dejar vacío o usar &apos;auto&apos; para detección automática&lt;/i&gt;</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Device</source>
+      <translation>Dispositivo</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>&lt;b&gt;Inference Device&lt;/b&gt;&lt;br&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;auto:&lt;/b&gt; Automatically select best available device&lt;/li&gt;&lt;li&gt;&lt;b&gt;cuda:&lt;/b&gt; Use NVIDIA GPU for faster inference&lt;/li&gt;&lt;li&gt;&lt;b&gt;cpu:&lt;/b&gt; Use CPU (slower but works on all systems)&lt;/li&gt;&lt;/ul&gt;</source>
+      <translation>&lt;b&gt;Dispositivo de inferencia&lt;/b&gt;&lt;br&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;auto:&lt;/b&gt; Seleccionar automáticamente el mejor dispositivo disponible&lt;/li&gt;&lt;li&gt;&lt;b&gt;cuda:&lt;/b&gt; Usar GPU NVIDIA para inferencia más rápida&lt;/li&gt;&lt;li&gt;&lt;b&gt;cpu:&lt;/b&gt; Usar CPU (más lento pero funciona en todos los sistemas)&lt;/li&gt;&lt;/ul&gt;</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Automatically select best available device</source>
+      <translation>Seleccionar automáticamente el mejor dispositivo disponible</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Use NVIDIA GPU for faster inference</source>
+      <translation>Usar GPU NVIDIA para inferencia más rápida</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Use CPU (slower but works on all systems)</source>
+      <translation>Usar CPU (más lento pero funciona en todos los sistemas)</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Compute Type</source>
+      <translation>Tipo de cómputo</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>&lt;b&gt;Computation Data Type&lt;/b&gt;&lt;br&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;auto:&lt;/b&gt; Automatically select best precision for the device&lt;/li&gt;&lt;li&gt;&lt;b&gt;int8:&lt;/b&gt; Fastest on CPU, uses less memory (quantized)&lt;/li&gt;&lt;li&gt;&lt;b&gt;float16:&lt;/b&gt; Recommended for NVIDIA GPUs (half precision)&lt;/li&gt;&lt;li&gt;&lt;b&gt;float32:&lt;/b&gt; Maximum precision, but slower (full precision)&lt;/li&gt;&lt;/ul&gt;</source>
+      <translation>&lt;b&gt;Tipo de datos de cómputo&lt;/b&gt;&lt;br&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;auto:&lt;/b&gt; Seleccionar automáticamente la mejor precisión para el dispositivo&lt;/li&gt;&lt;li&gt;&lt;b&gt;int8:&lt;/b&gt; Más rápido en CPU, usa menos memoria (cuantizado)&lt;/li&gt;&lt;li&gt;&lt;b&gt;float16:&lt;/b&gt; Recomendado para GPUs NVIDIA (precisión media)&lt;/li&gt;&lt;li&gt;&lt;b&gt;float32:&lt;/b&gt; Máxima precisión, pero más lento (precisión completa)&lt;/li&gt;&lt;/ul&gt;</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Automatically select best precision for the device</source>
+      <translation>Seleccionar automáticamente la mejor precisión para el dispositivo</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Fastest on CPU, uses less memory</source>
+      <translation>Más rápido en CPU, usa menos memoria</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Recommended for NVIDIA GPUs (half precision)</source>
+      <translation>Recomendado para GPUs NVIDIA (precisión media)</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Maximum precision, but slower</source>
+      <translation>Máxima precisión, pero más lento</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>VAD Threshold</source>
+      <translation>Umbral VAD</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>&lt;b&gt;Voice Activity Detection Threshold&lt;/b&gt;&lt;br&gt;&lt;br&gt;Energy threshold for speech detection (0.0 to 1.0).&lt;br&gt;&lt;br&gt;&lt;i&gt;Lower (0.1-0.3):&lt;/i&gt; Detects quiet speech, more false positives&lt;br&gt;&lt;i&gt;Medium (0.4-0.6):&lt;/i&gt; Good for normal environments&lt;br&gt;&lt;i&gt;Higher (0.7-0.9):&lt;/i&gt; Filters noise, may miss quiet speech&lt;br&gt;&lt;i&gt;Default:&lt;/i&gt; 0.5</source>
+      <translation>&lt;b&gt;Umbral de detección de actividad de voz&lt;/b&gt;&lt;br&gt;&lt;br&gt;Umbral de energía para detección de voz (0.0 a 1.0).&lt;br&gt;&lt;br&gt;&lt;i&gt;Bajo (0.1-0.3):&lt;/i&gt; Detecta voz suave, más falsos positivos&lt;br&gt;&lt;i&gt;Medio (0.4-0.6):&lt;/i&gt; Bueno para entornos normales&lt;br&gt;&lt;i&gt;Alto (0.7-0.9):&lt;/i&gt; Filtra ruido, puede omitir voz suave&lt;br&gt;&lt;i&gt;Predeterminado:&lt;/i&gt; 0.5</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Context Limit (chars)</source>
+      <translation>Límite de contexto (caracteres)</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>&lt;b&gt;Context Window Size&lt;/b&gt;&lt;br&gt;&lt;br&gt;Maximum characters of previous transcription to use as context.&lt;br&gt;&lt;br&gt;&lt;i&gt;Higher values:&lt;/i&gt; Better coherence across utterances&lt;br&gt;&lt;i&gt;Lower values:&lt;/i&gt; Less memory usage, faster processing&lt;br&gt;&lt;i&gt;Maximum:&lt;/i&gt; 100 characters</source>
+      <translation>&lt;b&gt;Tamaño de ventana de contexto&lt;/b&gt;&lt;br&gt;&lt;br&gt;Máximo de caracteres de transcripción previa para usar como contexto.&lt;br&gt;&lt;br&gt;&lt;i&gt;Valores altos:&lt;/i&gt; Mejor coherencia entre enunciados&lt;br&gt;&lt;i&gt;Valores bajos:&lt;/i&gt; Menos uso de memoria, procesamiento más rápido&lt;br&gt;&lt;i&gt;Máximo:&lt;/i&gt; 100 caracteres</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Auto Reset Context</source>
+      <translation>Reinicio automático de contexto</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>&lt;b&gt;Automatic Context Reset&lt;/b&gt;&lt;br&gt;&lt;br&gt;Clears context after 30 seconds of silence.&lt;br&gt;&lt;br&gt;&lt;i&gt;Enabled:&lt;/i&gt; Fresh start after pauses (recommended)&lt;br&gt;&lt;i&gt;Disabled:&lt;/i&gt; Context persists until manually reset</source>
+      <translation>&lt;b&gt;Reinicio automático de contexto&lt;/b&gt;&lt;br&gt;&lt;br&gt;Limpia el contexto tras 30 segundos de silencio.&lt;br&gt;&lt;br&gt;&lt;i&gt;Habilitado:&lt;/i&gt; Nuevo inicio tras pausas (recomendado)&lt;br&gt;&lt;i&gt;Deshabilitado:&lt;/i&gt; El contexto persiste hasta reiniciar manualmente</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Reset Context</source>
+      <translation>Reiniciar contexto</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>&lt;b&gt;Manual Context Reset&lt;/b&gt;&lt;br&gt;&lt;br&gt;Immediately clears the transcription context.&lt;br&gt;&lt;br&gt;&lt;i&gt;Use when:&lt;/i&gt; Changing topics, starting a new paragraph, or when transcription quality degrades</source>
+      <translation>&lt;b&gt;Reinicio manual de contexto&lt;/b&gt;&lt;br&gt;&lt;br&gt;Limpia inmediatamente el contexto de transcripción.&lt;br&gt;&lt;br&gt;&lt;i&gt;Usar cuando:&lt;/i&gt; Cambie de tema, inicie un nuevo párrafo, o cuando la calidad de transcripción degrade</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Locale</source>
+      <translation>Localización</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>&lt;b&gt;Locale for Formatting&lt;/b&gt;&lt;br&gt;&lt;br&gt;BCP-47 locale code for number and text formatting.&lt;br&gt;&lt;br&gt;&lt;i&gt;Examples:&lt;/i&gt; en_US, es_ES, fr_FR, de_DE</source>
+      <translation>&lt;b&gt;Localización para formato&lt;/b&gt;&lt;br&gt;&lt;br&gt;Código de localización BCP-47 para formato de números y texto.&lt;br&gt;&lt;br&gt;&lt;i&gt;Ejemplos:&lt;/i&gt; en_US, es_ES, fr_FR, de_DE</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>Max Queue Depth</source>
+      <translation>Profundidad máxima de cola</translation>
+    </message>
+    <message>
+      <location filename="../engines/whisper_local/settings.py" line="0" />
+      <source>&lt;b&gt;Audio Queue Size&lt;/b&gt;&lt;br&gt;&lt;br&gt;Maximum number of audio segments waiting for transcription.&lt;br&gt;&lt;br&gt;&lt;i&gt;Higher values:&lt;/i&gt; Better handling of bursts of speech&lt;br&gt;&lt;i&gt;Lower values:&lt;/i&gt; Less memory usage, more responsive&lt;br&gt;&lt;i&gt;Default:&lt;/i&gt; 2</source>
+      <translation>&lt;b&gt;Tamaño de cola de audio&lt;/b&gt;&lt;br&gt;&lt;br&gt;Número máximo de segmentos de audio esperando transcripción.&lt;br&gt;&lt;br&gt;&lt;i&gt;Valores altos:&lt;/i&gt; Mejor manejo de ráfagas de habla&lt;br&gt;&lt;i&gt;Valores bajos:&lt;/i&gt; Menos uso de memoria, más responsive&lt;br&gt;&lt;i&gt;Predeterminado:&lt;/i&gt; 2</translation>
+    </message>
+  </context>
 </TS>
