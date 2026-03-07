@@ -133,7 +133,7 @@ class ColoredFormatter(logging.Formatter):
     FORMAT = "%(message)s"
 
     FORMATS = {
-        logging.DEBUG: GREY + FORMAT + RESET,
+        logging.DEBUG: GREY + "[%(name)s] " + FORMAT + RESET,
         logging.INFO: RESET + FORMAT + RESET,  # Standard color for INFO
         logging.WARNING: YELLOW + FORMAT + RESET,
         logging.ERROR: RED + FORMAT + RESET,
@@ -167,12 +167,14 @@ def setup_logging(args: argparse.Namespace) -> None:
     handler.setFormatter(ColoredFormatter())
     root_logger.addHandler(handler)
     
-    # Silence excessively verbose third-party loggers unless debugging is explicitly requested
-    if numeric_level > logging.DEBUG:
-        logging.getLogger("urllib3").setLevel(logging.WARNING)
-        logging.getLogger("httpx").setLevel(logging.WARNING)
-        logging.getLogger("httpcore").setLevel(logging.WARNING)
-        logging.getLogger("faster_whisper").setLevel(logging.WARNING)
+    # Silence excessively verbose third-party loggers even in DEBUG mode
+    # These libraries generate too much noise (like connection state changes)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("faster_whisper").setLevel(logging.WARNING)
+    logging.getLogger("websockets").setLevel(logging.WARNING)
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
 
 
 def handle_cli_commands_and_exit_if_needed(args: argparse.Namespace, ipc: IPCManager) -> None:
