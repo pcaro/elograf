@@ -306,11 +306,21 @@ class ParecBackend(AudioBackend):
                 if getattr(self, "_closed", False):
                     raise EOFError("Audio recording is closed")
                 
-                # Check if it was killed by a signal (e.g. SIGINT from terminal)
+                # Check if it was killed by a signal (e.g. SIGINT from terminal) or exited cleanly (code 0)
                 retcode = self._parec.poll()
-                if retcode is not None and retcode < 0:
-                    logging.debug(f"parec process ended with signal {-retcode}, stopping read.")
-                    raise EOFError("parec process terminated by signal")
+                if retcode is None:
+                    # Give it a tiny bit of time to exit if the pipe just closed
+                    try:
+                        self._parec.wait(timeout=0.1)
+                        retcode = self._parec.poll()
+                    except Exception:
+                        pass
+                
+                if retcode is not None and (retcode <= 0 or retcode == 130 or retcode == 143):
+                    # 130 is 128 + SIGINT, 143 is 128 + SIGTERM (standard shell termination codes)
+                    # 0 is clean exit (which parec might do on SIGINT)
+                    logging.debug(f"parec process ended with code {retcode}, stopping read.")
+                    raise EOFError(f"parec process terminated (code {retcode})")
                     
                 # try to restart
                 logging.warning(f"parec process ended unexpectedly (code {retcode}), restarting")
