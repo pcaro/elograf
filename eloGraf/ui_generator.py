@@ -20,18 +20,20 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QVBoxLayout,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QCoreApplication
 
 
-def format_tooltip(content: str, text_color: str = "white", bg_color: str = "#ff4444", padding: int = 5) -> str:
+def format_tooltip(
+    content: str, text_color: str = "white", bg_color: str = "#ff4444", padding: int = 5
+) -> str:
     """Format content as an HTML tooltip with consistent styling.
-    
+
     Args:
         content: The tooltip content (can include HTML tags like <b>, <ul>, etc.)
         text_color: Text color (CSS color value, default: white)
         bg_color: Background color (CSS color value, default: #ff4444 red)
         padding: Padding in pixels (default: 5)
-    
+
     Returns:
         HTML string ready to be used with setToolTip()
     """
@@ -61,9 +63,7 @@ def _load_function_from_string(function_path: str) -> Callable:
 
 
 def _populate_dropdown_from_function(
-    combo: QComboBox,
-    function_path: str,
-    kwargs: dict | None = None
+    combo: QComboBox, function_path: str, kwargs: dict | None = None
 ) -> None:
     """Populate a QComboBox from a dynamic choices function.
 
@@ -143,7 +143,9 @@ def create_widget_from_field(field: Field, value: Any) -> QWidget:
                 combo.addItem(option, option)
                 if option in option_descriptions:
                     index = combo.count() - 1
-                    combo.setItemData(index, option_descriptions[option], Qt.ItemDataRole.ToolTipRole)
+                    combo.setItemData(
+                        index, option_descriptions[option], Qt.ItemDataRole.ToolTipRole
+                    )
 
         # Set current value
         if value is not None:
@@ -180,7 +182,9 @@ def create_widget_from_field(field: Field, value: Any) -> QWidget:
             # Connect refresh button to reload choices
             def on_refresh():
                 current_value = combo.currentData()
-                _populate_dropdown_from_function(combo, choices_function, choices_kwargs)
+                _populate_dropdown_from_function(
+                    combo, choices_function, choices_kwargs
+                )
                 # Try to restore selection
                 index = combo.findData(current_value)
                 if index >= 0:
@@ -255,9 +259,16 @@ def generate_settings_tab(settings_class: Type, instance: Any | None = None) -> 
     tab = QWidget()
     layout = QVBoxLayout(tab)
 
+    # Get translation context from class name
+    context = settings_class.__name__
+    _translate = QCoreApplication.translate
+
     # Add help text at the top
     help_label = QLabel(
-        "<i>These settings are only used when this engine is selected in the General tab.</i>"
+        _translate(
+            context,
+            "<i>These settings are only used when this engine is selected in the General tab.</i>",
+        )
     )
     layout.addWidget(help_label)
 
@@ -286,10 +297,14 @@ def generate_settings_tab(settings_class: Type, instance: Any | None = None) -> 
         widgets_map[field.name] = widget
 
         # Add to form
-        label_text = field.metadata.get("label", field.name)
+        label_text = _translate(context, field.metadata.get("label", field.name))
 
         # For action buttons, don't create a label/field pair, just add the button
         if field.metadata.get("widget") == "action_button":
+            # Translate button text if present
+            button_text = field.metadata.get("button_text", "Action")
+            if hasattr(widget, "setText"):
+                widget.setText(_translate(context, button_text))
             # Add button spanning both columns
             form_layout.addRow(widget)
         else:
@@ -299,17 +314,18 @@ def generate_settings_tab(settings_class: Type, instance: Any | None = None) -> 
                 label_layout = QHBoxLayout(label_container)
                 label_layout.setContentsMargins(0, 0, 0, 0)
                 label_layout.setSpacing(4)
-                
+
                 label = QLabel(label_text)
-                
+
                 info_icon = QLabel("ⓘ")
                 info_icon.setStyleSheet("color: #3498db; font-weight: bold;")
-                info_icon.setToolTip(format_tooltip(field.metadata["tooltip"]))
-                
+                tooltip_text = _translate(context, field.metadata["tooltip"])
+                info_icon.setToolTip(format_tooltip(tooltip_text))
+
                 label_layout.addWidget(label)
                 label_layout.addWidget(info_icon)
                 label_layout.addStretch()
-                
+
                 form_layout.addRow(label_container, widget)
             else:
                 label = QLabel(label_text)
@@ -334,7 +350,7 @@ def read_settings_from_tab(tab: QWidget, settings_class: Type) -> Any:
     Returns:
         Instance of settings_class with values from widgets
     """
-    widgets_map = getattr(tab, 'widgets_map', {})
+    widgets_map = getattr(tab, "widgets_map", {})
     values = {}
 
     # Get actual type hints (resolves string annotations)
@@ -354,11 +370,13 @@ def read_settings_from_tab(tab: QWidget, settings_class: Type) -> Any:
                 field_type = type_hints.get(field.name, str)
 
                 # Handle Optional types
-                if hasattr(field_type, '__origin__'):
+                if hasattr(field_type, "__origin__"):
                     # This is a generic type like Optional[str]
                     if field_type.__origin__ is typing.Union:
                         # Get the non-None type
-                        field_type = next((t for t in field_type.__args__ if t is not type(None)), str)
+                        field_type = next(
+                            (t for t in field_type.__args__ if t is not type(None)), str
+                        )
 
                 if field_type == int:
                     values[field.name] = int(text_value) if text_value else 0
@@ -373,16 +391,18 @@ def read_settings_from_tab(tab: QWidget, settings_class: Type) -> Any:
 
         elif widget_type == "dropdown":
             # Check if it's a refreshable container or direct combo box
-            if hasattr(widget, 'combo'):
+            if hasattr(widget, "combo"):
                 # Refreshable container widget
-                values[field.name] = widget.combo.currentData() or widget.combo.currentText()
+                values[field.name] = (
+                    widget.combo.currentData() or widget.combo.currentText()
+                )
             elif isinstance(widget, QComboBox):
                 # Direct combo box - try currentData first, fallback to currentText
                 values[field.name] = widget.currentData() or widget.currentText()
 
         elif widget_type == "slider":
             # Widget is a container with slider attribute
-            if hasattr(widget, 'slider'):
+            if hasattr(widget, "slider"):
                 values[field.name] = widget.slider.value()
 
     return settings_class(**values)
@@ -410,21 +430,20 @@ def _get_widget_value(widget: QWidget, field: dataclasses.Field) -> Any:
 
     elif widget_type == "dropdown":
         # Check if it's a refreshable container or direct combo box
-        if hasattr(widget, 'combo'):
+        if hasattr(widget, "combo"):
             return widget.combo.currentData() or widget.combo.currentText()
         elif isinstance(widget, QComboBox):
             return widget.currentData() or widget.currentText()
 
     elif widget_type == "slider":
-        if hasattr(widget, 'slider'):
+        if hasattr(widget, "slider"):
             return widget.slider.value()
 
     return None
 
 
 def validate_settings_from_tab(
-    tab_widget: QWidget,
-    settings_class: Type
+    tab_widget: QWidget, settings_class: Type
 ) -> dict[str, str]:
     """Validate all fields in a settings tab.
 
@@ -461,15 +480,13 @@ def validate_settings_from_tab(
         except Exception as e:
             # Log error but don't block validation of other fields
             import logging
+
             logging.warning(f"Validation error for field {field.name}: {e}")
 
     return warnings
 
 
-def apply_validation_warnings(
-    tab_widget: QWidget,
-    warnings: dict[str, str]
-) -> None:
+def apply_validation_warnings(tab_widget: QWidget, warnings: dict[str, str]) -> None:
     """Apply visual feedback for validation warnings.
 
     Args:
@@ -482,7 +499,7 @@ def apply_validation_warnings(
             continue
 
         # Get the actual input widget (handle refreshable containers)
-        input_widget = widget.combo if hasattr(widget, 'combo') else widget
+        input_widget = widget.combo if hasattr(widget, "combo") else widget
 
         # Apply red border
         input_widget.setStyleSheet("border: 2px solid red;")
@@ -495,10 +512,7 @@ def apply_validation_warnings(
         input_widget.setToolTip(warning_tooltip)
 
 
-def clear_validation_warnings(
-    tab_widget: QWidget,
-    settings_class: Type
-) -> None:
+def clear_validation_warnings(tab_widget: QWidget, settings_class: Type) -> None:
     """Clear all validation warning visuals from a tab.
 
     Args:
@@ -510,7 +524,7 @@ def clear_validation_warnings(
         if not widget:
             continue
 
-        input_widget = widget.combo if hasattr(widget, 'combo') else widget
+        input_widget = widget.combo if hasattr(widget, "combo") else widget
 
         # Clear custom stylesheet
         input_widget.setStyleSheet("")
