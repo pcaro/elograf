@@ -18,18 +18,7 @@ SOURCES += eloGraf/elograf.py \
 
 HEADERS  +=
 
-TRANSLATIONS     += eloGraf/translations/elograf_ca.ts
-TRANSLATIONS     += eloGraf/translations/elograf_cs.ts
-TRANSLATIONS     += eloGraf/translations/elograf_de.ts
+TRANSLATIONS     += eloGraf/translations/elograf_en.ts
 TRANSLATIONS     += eloGraf/translations/elograf_es.ts
-TRANSLATIONS     += eloGraf/translations/elograf_fi.ts
-TRANSLATIONS     += eloGraf/translations/elograf_fr.ts
-TRANSLATIONS     += eloGraf/translations/elograf_it.ts
-TRANSLATIONS     += eloGraf/translations/elograf_nb.ts
-TRANSLATIONS     += eloGraf/translations/elograf_pt.ts
-TRANSLATIONS     += eloGraf/translations/elograf_pt_BR.ts
-TRANSLATIONS     += eloGraf/translations/elograf_ru.ts
-TRANSLATIONS     += eloGraf/translations/elograf_sv.ts
-TRANSLATIONS     += eloGraf/translations/elograf_uk.ts
 
 OTHER_FILES += 
