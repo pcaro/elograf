@@ -694,6 +694,10 @@ Se usa para añadir una coma, o parar completamente el dictado según retardos p
         <translation>Alternar dictado</translation>
     </message>
     <message>
+        <source>Stop dictation</source>
+        <translation>Parar dictado</translation>
+    </message>
+    <message>
         <source>Suspend dictation</source>
         <translation>Suspender el dictado</translation>
     </message>
