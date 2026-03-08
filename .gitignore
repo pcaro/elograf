@@ -4,7 +4,6 @@ __pycache__/
 *.egg-info/
 build/
 dist/
-*.qm
 
 # Local configuration
 .claude/settings.local.json
