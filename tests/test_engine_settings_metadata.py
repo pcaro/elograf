@@ -15,15 +15,15 @@ def test_whisper_settings_metadata():
     field_dict = {f.name: f for f in fields}
 
     # Check model has dropdown metadata
-    model_field = field_dict['model']
-    assert model_field.metadata['widget'] == "dropdown"
-    assert 'options' in model_field.metadata
-    assert "base" in model_field.metadata['options']
-    assert "large-v3" in model_field.metadata['options']
+    model_field = field_dict["model"]
+    assert model_field.metadata["widget"] == "dropdown"
+    assert "options" in model_field.metadata
+    assert "base" in model_field.metadata["options"]
+    assert "large-v3" in model_field.metadata["options"]
 
     # Check vad_enabled has checkbox metadata
-    vad_field = field_dict['vad_enabled']
-    assert vad_field.metadata['widget'] == "checkbox"
+    vad_field = field_dict["vad_enabled"]
+    assert vad_field.metadata["widget"] == "checkbox"
 
 
 def test_google_settings_metadata():
@@ -34,9 +34,9 @@ def test_google_settings_metadata():
     field_dict = {f.name: f for f in fields}
 
     # Check credentials_path has text widget
-    creds_field = field_dict['credentials_path']
-    assert creds_field.metadata['widget'] == "text"
-    assert creds_field.metadata['label'] == "Credentials Path"
+    creds_field = field_dict["credentials_path"]
+    assert creds_field.metadata["widget"] == "text"
+    assert creds_field.metadata["label"] == "Credentials Path"
 
 
 def test_openai_settings_metadata():
@@ -47,21 +47,9 @@ def test_openai_settings_metadata():
     field_dict = {f.name: f for f in fields}
 
     # Check api_key has password widget
-    api_key_field = field_dict['api_key']
-    assert api_key_field.metadata['widget'] == "password"
+    api_key_field = field_dict["api_key"]
+    assert api_key_field.metadata["widget"] == "password"
 
     # Check model has dropdown
-    model_field = field_dict['model']
-    assert model_field.metadata['widget'] == "dropdown"
-
-
-def test_assemblyai_settings_metadata():
-    """Test AssemblyAISettings fields have UI metadata."""
-    from eloGraf.engines.assemblyai.settings import AssemblyAISettings
-
-    fields = dataclasses.fields(AssemblyAISettings)
-    field_dict = {f.name: f for f in fields}
-
-    # Check api_key has password widget
-    api_key_field = field_dict['api_key']
-    assert api_key_field.metadata['widget'] == "password"
+    model_field = field_dict["model"]
+    assert model_field.metadata["widget"] == "dropdown"

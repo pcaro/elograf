@@ -44,18 +44,13 @@ STTController                    STTProcessRunner
      │   └── GoogleCloudSpeechState     │   ├── gRPC streaming client
      │                                  │   ├── Audio recording (AudioRecorder)
      │                                  │   └── Credentials management
-     │                                  │
-     ├── OpenAIRealtimeController       ├── OpenAIRealtimeProcessRunner
-     │   └── OpenAIRealtimeState        │   ├── WebSocket client
-     │                                  │   ├── Audio recording (AudioRecorder)
-     │                                  │   └── Real-time streaming
-     │                                  │
-     ├── AssemblyAIRealtimeController   ├── AssemblyAIRealtimeProcessRunner
-     │   └── AssemblyAIRealtimeState    │   ├── WebSocket client
-     │                                  │   ├── Audio recording (AudioRecorder)
-     │                                  │   └── Real-time streaming
-     │                                  │
-     └── GeminiLiveController           └── GeminiLiveProcessRunner
+      │                                  │
+      ├── OpenAIRealtimeController       ├── OpenAIRealtimeProcessRunner
+      │   └── OpenAIRealtimeState        │   ├── WebSocket client
+      │                                  │   ├── Audio recording (AudioRecorder)
+      │                                  │   └── Real-time streaming
+      │                                  │
+      └── GeminiLiveController           └── GeminiLiveProcessRunner
          └── GeminiLiveState                ├── WebSocket client
                                             ├── Audio recording (AudioRecorder)
                                             └── Real-time streaming
@@ -208,7 +203,7 @@ Persistent configuration using QSettings:
 
 ## Audio Recording
 
-All streaming engines (Whisper Local, Whisper Docker, Google Cloud, OpenAI, AssemblyAI, Gemini) use a unified `AudioRecorder` class with pluggable backends:
+All streaming engines (Whisper Local, Whisper Docker, Google Cloud, OpenAI, Gemini) use a unified `AudioRecorder` class with pluggable backends:
 
 ```python
 class AudioRecorder:

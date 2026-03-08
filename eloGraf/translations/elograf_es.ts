@@ -754,59 +754,6 @@ Se usa para añadir una coma, o parar completamente el dictado según retardos p
     </message>
   </context>
   <context>
-    <name>AssemblyAISettings</name>
-    <message>
-      <location filename="../engines/assemblyai/settings.py" line="0" />
-      <source>API Key</source>
-      <translation>Clave de API</translation>
-    </message>
-    <message>
-      <location filename="../engines/assemblyai/settings.py" line="0" />
-      <source>&lt;b&gt;AssemblyAI API Key&lt;/b&gt;&lt;br&gt;API key for AssemblyAI Realtime transcription.&lt;br&gt;&lt;br&gt;&lt;i&gt;Get your key at:&lt;/i&gt; www.assemblyai.com&lt;br&gt;&lt;i&gt;Note:&lt;/i&gt; Supports regular API keys or temporary tokens</source>
-      <translation>&lt;b&gt;Clave de API de AssemblyAI&lt;/b&gt;&lt;br&gt;Clave de API para transcripción en tiempo real de AssemblyAI.&lt;br&gt;&lt;br&gt;&lt;i&gt;Obtenga su clave en:&lt;/i&gt; www.assemblyai.com&lt;br&gt;&lt;i&gt;Nota:&lt;/i&gt; Soporta claves de API regulares o tokens temporales</translation>
-    </message>
-    <message>
-      <location filename="../engines/assemblyai/settings.py" line="0" />
-      <source>Model</source>
-      <translation>Modelo</translation>
-    </message>
-    <message>
-      <location filename="../engines/assemblyai/settings.py" line="0" />
-      <source>&lt;b&gt;Transcription Model&lt;/b&gt;&lt;br&gt;AssemblyAI model optimized for different use cases.&lt;br&gt;&lt;br&gt;&lt;b&gt;universal:&lt;/b&gt; General purpose (default)&lt;br&gt;&lt;b&gt;meeting:&lt;/b&gt; Multi-speaker conversations&lt;br&gt;&lt;b&gt;default:&lt;/b&gt; Balanced accuracy/speed</source>
-      <translation>&lt;b&gt;Modelo de transcripción&lt;/b&gt;&lt;br&gt;Modelo de AssemblyAI optimizado para diferentes casos de uso.&lt;br&gt;&lt;br&gt;&lt;b&gt;universal:&lt;/b&gt; Uso general (predeterminado)&lt;br&gt;&lt;b&gt;meeting:&lt;/b&gt; Conversaciones con múltiples hablantes&lt;br&gt;&lt;b&gt;default:&lt;/b&gt; Equilibrio precisión/velocidad</translation>
-    </message>
-    <message>
-      <location filename="../engines/assemblyai/settings.py" line="0" />
-      <source>Language</source>
-      <translation>Idioma</translation>
-    </message>
-    <message>
-      <location filename="../engines/assemblyai/settings.py" line="0" />
-      <source>Optional BCP-47 language code; leave empty for auto-detect</source>
-      <translation>Código de idioma BCP-47 opcional; dejar vacío para autodetección</translation>
-    </message>
-    <message>
-      <location filename="../engines/assemblyai/settings.py" line="0" />
-      <source>Sample Rate</source>
-      <translation>Tasa de muestreo</translation>
-    </message>
-    <message>
-      <location filename="../engines/assemblyai/settings.py" line="0" />
-      <source>Sample rate in Hz used for PCM frames sent to AssemblyAI</source>
-      <translation>Tasa de muestreo en Hz usada para los marcos PCM enviados a AssemblyAI</translation>
-    </message>
-    <message>
-      <location filename="../engines/assemblyai/settings.py" line="0" />
-      <source>Channels</source>
-      <translation>Canales</translation>
-    </message>
-    <message>
-      <location filename="../engines/assemblyai/settings.py" line="0" />
-      <source>Number of audio channels captured (mono recommended)</source>
-      <translation>Número de canales de audio capturados (se recomienda mono)</translation>
-    </message>
-  </context>
-  <context>
     <name>GeminiSettings</name>
     <message>
       <location filename="../engines/gemini/settings.py" line="0" />

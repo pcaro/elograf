@@ -11,7 +11,6 @@ from eloGraf.base_settings import EngineSettings
 from eloGraf.engines.whisper.settings import WhisperSettings
 from eloGraf.engines.google.settings import GoogleCloudSettings
 from eloGraf.engines.openai.settings import OpenAISettings
-from eloGraf.engines.assemblyai.settings import AssemblyAISettings
 from eloGraf.engines.gemini.settings import GeminiSettings
 from eloGraf.engines.vosk_local.settings import VoskLocalSettings
 from eloGraf.engines.whisper_local.settings import WhisperLocalSettings
@@ -25,7 +24,12 @@ class Settings:
     def __init__(self, backend: Optional[QSettings] = None) -> None:
         if backend is None:
             if os.environ.get("PYTEST_CURRENT_TEST"):
-                backend = QSettings(QSettings.Format.IniFormat, QSettings.Scope.UserScope, "ElografTests", "Elograf")
+                backend = QSettings(
+                    QSettings.Format.IniFormat,
+                    QSettings.Scope.UserScope,
+                    "ElografTests",
+                    "Elograf",
+                )
                 backend.clear()
             else:
                 backend = QSettings("Elograf", "Elograf")
@@ -80,11 +84,6 @@ class Settings:
         self.openaiVadPrefixPaddingMs: int = 300
         self.openaiVadSilenceDurationMs: int = 200
         self.openaiLanguage: str = "en-US"
-        self.assemblyApiKey: str = ""
-        self.assemblyModel: str = "universal"
-        self.assemblyLanguage: str = ""
-        self.assemblySampleRate: int = 16000
-        self.assemblyChannels: int = 1
         self.geminiApiKey: str = ""
         self.geminiModel: str = "gemini-2.5-flash"
         self.geminiLanguageCode: str = "en-US"
@@ -143,20 +142,36 @@ class Settings:
         self.whisperModel = backend.value("WhisperModel", "base", type=str)
         self.whisperLanguage = backend.value("WhisperLanguage", "", type=str)
         self.whisperPort = backend.value("WhisperPort", 9000, type=int)
-        self.whisperChunkDuration = backend.value("WhisperChunkDuration", 5.0, type=float)
+        self.whisperChunkDuration = backend.value(
+            "WhisperChunkDuration", 5.0, type=float
+        )
         self.whisperSampleRate = backend.value("WhisperSampleRate", 16000, type=int)
         self.whisperChannels = backend.value("WhisperChannels", 1, type=int)
         self.whisperVadEnabled = backend.value("WhisperVadEnabled", True, type=bool)
-        self.whisperVadThreshold = backend.value("WhisperVadThreshold", 500.0, type=float)
-        self.whisperAutoReconnect = backend.value("WhisperAutoReconnect", True, type=bool)
-        self.googleCloudCredentialsPath = backend.value("GoogleCloudCredentialsPath", "", type=str)
+        self.whisperVadThreshold = backend.value(
+            "WhisperVadThreshold", 500.0, type=float
+        )
+        self.whisperAutoReconnect = backend.value(
+            "WhisperAutoReconnect", True, type=bool
+        )
+        self.googleCloudCredentialsPath = backend.value(
+            "GoogleCloudCredentialsPath", "", type=str
+        )
         self.googleCloudProjectId = backend.value("GoogleCloudProjectId", "", type=str)
-        self.googleCloudLanguageCode = backend.value("GoogleCloudLanguageCode", "en-US", type=str)
+        self.googleCloudLanguageCode = backend.value(
+            "GoogleCloudLanguageCode", "en-US", type=str
+        )
         self.googleCloudModel = backend.value("GoogleCloudModel", "chirp_3", type=str)
-        self.googleCloudSampleRate = backend.value("GoogleCloudSampleRate", 16000, type=int)
+        self.googleCloudSampleRate = backend.value(
+            "GoogleCloudSampleRate", 16000, type=int
+        )
         self.googleCloudChannels = backend.value("GoogleCloudChannels", 1, type=int)
-        self.googleCloudVadEnabled = backend.value("GoogleCloudVadEnabled", True, type=bool)
-        self.googleCloudVadThreshold = backend.value("GoogleCloudVadThreshold", 500.0, type=float)
+        self.googleCloudVadEnabled = backend.value(
+            "GoogleCloudVadEnabled", True, type=bool
+        )
+        self.googleCloudVadThreshold = backend.value(
+            "GoogleCloudVadThreshold", 500.0, type=float
+        )
         self.openaiApiKey = backend.value("OpenaiApiKey", "", type=str)
         self.openaiModel = backend.value("OpenaiModel", "gpt-4o-transcribe", type=str)
         legacy_session_models = {
@@ -166,19 +181,20 @@ class Settings:
         if self.openaiModel in legacy_session_models:
             self.openaiModel = legacy_session_models[self.openaiModel]
             backend.setValue("OpenaiModel", self.openaiModel)
-        self.openaiApiVersion = backend.value("OpenaiApiVersion", "2025-08-28", type=str)
+        self.openaiApiVersion = backend.value(
+            "OpenaiApiVersion", "2025-08-28", type=str
+        )
         self.openaiSampleRate = backend.value("OpenaiSampleRate", 16000, type=int)
         self.openaiChannels = backend.value("OpenaiChannels", 1, type=int)
         self.openaiVadEnabled = backend.value("OpenaiVadEnabled", True, type=bool)
         self.openaiVadThreshold = backend.value("OpenaiVadThreshold", 0.5, type=float)
-        self.openaiVadPrefixPaddingMs = backend.value("OpenaiVadPrefixPaddingMs", 300, type=int)
-        self.openaiVadSilenceDurationMs = backend.value("OpenaiVadSilenceDurationMs", 200, type=int)
+        self.openaiVadPrefixPaddingMs = backend.value(
+            "OpenaiVadPrefixPaddingMs", 300, type=int
+        )
+        self.openaiVadSilenceDurationMs = backend.value(
+            "OpenaiVadSilenceDurationMs", 200, type=int
+        )
         self.openaiLanguage = backend.value("OpenaiLanguage", "en-US", type=str)
-        self.assemblyApiKey = backend.value("AssemblyApiKey", "", type=str)
-        self.assemblyModel = backend.value("AssemblyModel", "universal", type=str)
-        self.assemblyLanguage = backend.value("AssemblyLanguage", "", type=str)
-        self.assemblySampleRate = backend.value("AssemblySampleRate", 16000, type=int)
-        self.assemblyChannels = backend.value("AssemblyChannels", 1, type=int)
         self.geminiApiKey = backend.value("GeminiApiKey", "", type=str)
         self.geminiModel = backend.value("GeminiModel", "gemini-2.5-flash", type=str)
         self.geminiLanguageCode = backend.value("GeminiLanguageCode", "en-US", type=str)
@@ -199,15 +215,29 @@ class Settings:
         self.voskMaxQueueDepth = backend.value("VoskMaxQueueDepth", 3, type=int)
 
         # Whisper Local
-        self.whisperLocalModelSize = backend.value("WhisperLocalModelSize", "base", type=str)
-        self.whisperLocalLanguage = backend.value("WhisperLocalLanguage", "auto", type=str)
+        self.whisperLocalModelSize = backend.value(
+            "WhisperLocalModelSize", "base", type=str
+        )
+        self.whisperLocalLanguage = backend.value(
+            "WhisperLocalLanguage", "auto", type=str
+        )
         self.whisperLocalDevice = backend.value("WhisperLocalDevice", "auto", type=str)
-        self.whisperLocalComputeType = backend.value("WhisperLocalComputeType", "auto", type=str)
-        self.whisperLocalVadThreshold = backend.value("WhisperLocalVadThreshold", 0.5, type=float)
-        self.whisperLocalContextLimitChars = backend.value("WhisperLocalContextLimitChars", 100, type=int)
-        self.whisperLocalAutoResetContext = backend.value("WhisperLocalAutoResetContext", True, type=bool)
+        self.whisperLocalComputeType = backend.value(
+            "WhisperLocalComputeType", "auto", type=str
+        )
+        self.whisperLocalVadThreshold = backend.value(
+            "WhisperLocalVadThreshold", 0.5, type=float
+        )
+        self.whisperLocalContextLimitChars = backend.value(
+            "WhisperLocalContextLimitChars", 100, type=int
+        )
+        self.whisperLocalAutoResetContext = backend.value(
+            "WhisperLocalAutoResetContext", True, type=bool
+        )
         self.whisperLocalLocale = backend.value("WhisperLocalLocale", "en_US", type=str)
-        self.whisperLocalMaxQueueDepth = backend.value("WhisperLocalMaxQueueDepth", 2, type=int)
+        self.whisperLocalMaxQueueDepth = backend.value(
+            "WhisperLocalMaxQueueDepth", 2, type=int
+        )
 
         self.models = []
         count = backend.beginReadArray("Models")
@@ -284,7 +314,9 @@ class Settings:
         else:
             backend.setValue("WhisperVadThreshold", self.whisperVadThreshold)
         backend.setValue("WhisperAutoReconnect", int(self.whisperAutoReconnect))
-        self._set_or_remove("GoogleCloudCredentialsPath", self.googleCloudCredentialsPath)
+        self._set_or_remove(
+            "GoogleCloudCredentialsPath", self.googleCloudCredentialsPath
+        )
         self._set_or_remove("GoogleCloudProjectId", self.googleCloudProjectId)
         if self.googleCloudLanguageCode == "en-US":
             backend.remove("GoogleCloudLanguageCode")
@@ -336,25 +368,13 @@ class Settings:
         if self.openaiVadSilenceDurationMs == 200:
             backend.remove("OpenaiVadSilenceDurationMs")
         else:
-            backend.setValue("OpenaiVadSilenceDurationMs", self.openaiVadSilenceDurationMs)
+            backend.setValue(
+                "OpenaiVadSilenceDurationMs", self.openaiVadSilenceDurationMs
+            )
         if self.openaiLanguage == "en-US":
             backend.remove("OpenaiLanguage")
         else:
             backend.setValue("OpenaiLanguage", self.openaiLanguage)
-        self._set_or_remove("AssemblyApiKey", self.assemblyApiKey)
-        if self.assemblyModel == "universal":
-            backend.remove("AssemblyModel")
-        else:
-            backend.setValue("AssemblyModel", self.assemblyModel)
-        self._set_or_remove("AssemblyLanguage", self.assemblyLanguage)
-        if self.assemblySampleRate == 16000:
-            backend.remove("AssemblySampleRate")
-        else:
-            backend.setValue("AssemblySampleRate", self.assemblySampleRate)
-        if self.assemblyChannels == 1:
-            backend.remove("AssemblyChannels")
-        else:
-            backend.setValue("AssemblyChannels", self.assemblyChannels)
         self._set_or_remove("GeminiApiKey", self.geminiApiKey)
         if self.geminiModel == "gemini-2.5-flash":
             backend.remove("GeminiModel")
@@ -431,8 +451,12 @@ class Settings:
         if self.whisperLocalContextLimitChars == 100:
             backend.remove("WhisperLocalContextLimitChars")
         else:
-            backend.setValue("WhisperLocalContextLimitChars", self.whisperLocalContextLimitChars)
-        backend.setValue("WhisperLocalAutoResetContext", int(self.whisperLocalAutoResetContext))
+            backend.setValue(
+                "WhisperLocalContextLimitChars", self.whisperLocalContextLimitChars
+            )
+        backend.setValue(
+            "WhisperLocalAutoResetContext", int(self.whisperLocalAutoResetContext)
+        )
         if self.whisperLocalLocale == "en_US":
             backend.remove("WhisperLocalLocale")
         else:
@@ -440,7 +464,9 @@ class Settings:
         if self.whisperLocalMaxQueueDepth == 2:
             backend.remove("WhisperLocalMaxQueueDepth")
         else:
-            backend.setValue("WhisperLocalMaxQueueDepth", self.whisperLocalMaxQueueDepth)
+            backend.setValue(
+                "WhisperLocalMaxQueueDepth", self.whisperLocalMaxQueueDepth
+            )
 
         if self.deviceName == "default":
             backend.remove("DeviceName")
@@ -538,7 +564,15 @@ class Settings:
 
     def get_engine_settings(
         self, engine_type: Optional[str] = None
-    ) -> Union[WhisperSettings, GoogleCloudSettings, OpenAISettings, AssemblyAISettings, GeminiSettings, VoskLocalSettings, WhisperLocalSettings, EngineSettings]:
+    ) -> Union[
+        WhisperSettings,
+        GoogleCloudSettings,
+        OpenAISettings,
+        GeminiSettings,
+        VoskLocalSettings,
+        WhisperLocalSettings,
+        EngineSettings,
+    ]:
         """
         Get type-safe engine settings dataclass for the requested engine.
 
@@ -593,16 +627,6 @@ class Settings:
                 vad_silence_duration_ms=self.openaiVadSilenceDurationMs,
                 language=self.openaiLanguage,
             )
-        if canonical_type == "assemblyai":
-            return AssemblyAISettings(
-                engine_type=canonical_type,
-                device_name=self.deviceName,
-                api_key=self.assemblyApiKey,
-                model=self.assemblyModel,
-                language=self.assemblyLanguage,
-                sample_rate=self.assemblySampleRate,
-                channels=self.assemblyChannels,
-            )
         if canonical_type == "gemini-live":
             return GeminiSettings(
                 engine_type=canonical_type,
@@ -650,7 +674,15 @@ class Settings:
         )
 
     def update_from_dataclass(
-        self, engine_settings: Union[WhisperSettings, GoogleCloudSettings, OpenAISettings, AssemblyAISettings, GeminiSettings, VoskLocalSettings, WhisperLocalSettings]
+        self,
+        engine_settings: Union[
+            WhisperSettings,
+            GoogleCloudSettings,
+            OpenAISettings,
+            GeminiSettings,
+            VoskLocalSettings,
+            WhisperLocalSettings,
+        ],
     ) -> None:
         """
         Update settings from a dataclass instance via its plugin.

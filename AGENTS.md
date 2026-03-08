@@ -1,6 +1,6 @@
 # Project Description
 
-EloGraf is a desktop utility written in Python that facilitates voice dictation on Linux by integrating with multiple speech recognition engines, including Whisper (Local), Vosk (Local), Whisper Docker, Google Cloud Speech, OpenAI Realtime, AssemblyAI Realtime, and Gemini Live API. The application offers a system tray, global shortcuts, and an advanced interface for configuring audio devices, pre/post commands, and engine-specific parameters for each STT engine.
+EloGraf is a desktop utility written in Python that facilitates voice dictation on Linux by integrating with multiple speech recognition engines, including Whisper (Local), Vosk (Local), Whisper Docker, Google Cloud Speech, OpenAI Realtime, and Gemini Live API. The application offers a system tray, global shortcuts, and an advanced interface for configuring audio devices, pre/post commands, and engine-specific parameters for each STT engine.
 
 ## Main Capabilities
 - Graphical launcher and CLI to start, stop, suspend, and resume dictation
@@ -101,11 +101,7 @@ The Google Cloud Speech integration is implemented in the `eloGraf/engines/googl
 
 The OpenAI Realtime API integration is implemented in the `eloGraf/engines/openai/` package and uses a WebSocket-based communication model for real-time voice transcription.
 
-### 6. AssemblyAI Realtime
-
-The AssemblyAI integration is implemented in the `eloGraf/engines/assemblyai/` package and provides another cloud-hosted, low-latency streaming engine.
-
-### 7. Gemini Live API
+### 6. Gemini Live API
 
 The Gemini Live API integration is implemented in the `eloGraf/engines/gemini/` package and uses Google's Gemini models for real-time speech-to-text via WebSockets.
 

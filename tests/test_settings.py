@@ -6,7 +6,6 @@ import pytest
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication
 
-from eloGraf.engines.assemblyai.settings import AssemblyAISettings
 from eloGraf.engines.google.settings import GoogleCloudSettings
 from eloGraf.engines.openai.settings import OpenAISettings
 from eloGraf.engines.whisper.settings import WhisperSettings
@@ -159,26 +158,13 @@ def test_settings_get_openai_engine_settings(qt_app):
     assert engine_settings.language == "fr-FR"
 
 
-def test_settings_get_assembly_engine_settings(qt_app):
-    settings = Settings()
-    settings.sttEngine = "assemblyai"
-    settings.assemblyModel = "best"
-    settings.assemblySampleRate = 48000
-    settings.assemblyLanguage = "es"
-
-    engine_settings = settings.get_engine_settings()
-
-    assert isinstance(engine_settings, AssemblyAISettings)
-    assert engine_settings.model == "best"
-    assert engine_settings.sample_rate == 48000
-    assert engine_settings.language == "es"
-
-
 def test_settings_update_from_whisper_dataclass(qt_app):
     settings = Settings()
     settings.sttEngine = "whisper-docker"
 
-    new_settings = WhisperSettings(model="large-v2", port=9002, device_name="custom-device")
+    new_settings = WhisperSettings(
+        model="large-v2", port=9002, device_name="custom-device"
+    )
 
     settings.update_from_dataclass(new_settings)
 

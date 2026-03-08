@@ -40,15 +40,13 @@ def test_advanced_dialog_creates_dynamic_tabs(qt_app):
 
     # Check that engine tabs were created
     tab_texts = [
-        dialog.ui.tabWidget.tabText(i)
-        for i in range(dialog.ui.tabWidget.count())
+        dialog.ui.tabWidget.tabText(i) for i in range(dialog.ui.tabWidget.count())
     ]
 
     assert "General" in tab_texts
     assert "Whisper (Docker)" in tab_texts
     assert "Google Cloud" in tab_texts
     assert "OpenAI" in tab_texts
-    assert "AssemblyAI" in tab_texts
 
 
 def test_advanced_dialog_stores_engine_tabs(qt_app):
@@ -58,14 +56,13 @@ def test_advanced_dialog_stores_engine_tabs(qt_app):
     dialog = AdvancedUI()
 
     # Should have engine_tabs dict with all engines
-    assert hasattr(dialog, 'engine_tabs')
+    assert hasattr(dialog, "engine_tabs")
     assert isinstance(dialog.engine_tabs, dict)
 
     assert "vosk-local" in dialog.engine_tabs
     assert "whisper-docker" in dialog.engine_tabs
     assert "google-cloud-speech" in dialog.engine_tabs
     assert "openai-realtime" in dialog.engine_tabs
-    assert "assemblyai" in dialog.engine_tabs
 
 
 def test_engine_tab_switching(qt_app):
@@ -92,7 +89,10 @@ def test_advanced_dialog_populates_settings_instance(qt_app):
     """AdvancedUI should pre-fill dynamic tabs with existing settings values."""
     import dataclasses
     from eloGraf.dialogs import AdvancedUI
-    from eloGraf.engine_settings_registry import get_all_engine_ids, get_engine_settings_class
+    from eloGraf.engine_settings_registry import (
+        get_all_engine_ids,
+        get_engine_settings_class,
+    )
 
     class DummySettings:
         def __init__(self):

@@ -29,7 +29,6 @@ FALLBACK_CHAIN = {
     "openai-realtime": ["whisper-docker", "vosk-local"],
     "google-cloud-speech": ["openai-realtime", "whisper-docker", "vosk-local"],
     "whisper-docker": ["vosk-local"],
-    "assemblyai": ["openai-realtime", "whisper-docker", "vosk-local"],
 }
 
 _CIRCUIT_OPEN_SECONDS = 15

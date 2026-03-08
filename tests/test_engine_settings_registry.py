@@ -22,7 +22,6 @@ def test_get_all_engine_ids_returns_list():
     assert "whisper-docker" in engine_ids
     assert "google-cloud-speech" in engine_ids
     assert "openai-realtime" in engine_ids
-    assert "assemblyai" in engine_ids
     assert "gemini-live" in engine_ids
 
 
@@ -31,7 +30,6 @@ def test_get_engine_display_name_returns_human_readable():
     assert get_engine_display_name("whisper-docker") == "Whisper (Docker)"
     assert get_engine_display_name("google-cloud-speech") == "Google Cloud"
     assert get_engine_display_name("openai-realtime") == "OpenAI"
-    assert get_engine_display_name("assemblyai") == "AssemblyAI"
     assert get_engine_display_name("gemini-live") == "Gemini Live API"
 
 
@@ -46,13 +44,11 @@ def test_get_engine_settings_class_returns_dataclass():
     from eloGraf.engines.whisper.settings import WhisperSettings
     from eloGraf.engines.google.settings import GoogleCloudSettings
     from eloGraf.engines.openai.settings import OpenAISettings
-    from eloGraf.engines.assemblyai.settings import AssemblyAISettings
     from eloGraf.engines.gemini.settings import GeminiSettings
 
     assert get_engine_settings_class("whisper-docker") == WhisperSettings
     assert get_engine_settings_class("google-cloud-speech") == GoogleCloudSettings
     assert get_engine_settings_class("openai-realtime") == OpenAISettings
-    assert get_engine_settings_class("assemblyai") == AssemblyAISettings
     assert get_engine_settings_class("gemini-live") == GeminiSettings
 
 
@@ -80,8 +76,8 @@ def test_all_engines_have_settings_classes():
         assert settings_class is not None, f"Engine {engine_id} has no settings class"
 
         # Verify it's a dataclass
-        assert hasattr(settings_class, '__dataclass_fields__')
+        assert hasattr(settings_class, "__dataclass_fields__")
 
         # Verify it can be instantiated
         instance = settings_class()
-        assert hasattr(instance, 'engine_type')
+        assert hasattr(instance, "engine_type")

@@ -209,7 +209,6 @@ elograf/
 │   │   ├── whisper/                    # Whisper Docker
 │   │   ├── google/                     # Google Cloud Speech
 │   │   ├── openai/                     # OpenAI Realtime
-│   │   ├── assemblyai/                 # AssemblyAI Realtime
 │   │   └── gemini/                     # Gemini Live
 │   ├── tray_icon.py                    # System tray interface
 │   ├── settings.py                     # Persistent configuration

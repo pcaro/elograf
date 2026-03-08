@@ -24,11 +24,6 @@ ENGINES: Dict[str, Dict[str, Any]] = {
         "class": "OpenAISettings",
         "display_name": "OpenAI",
     },
-    "assemblyai": {
-        "module": "eloGraf.engines.assemblyai.settings",
-        "class": "AssemblyAISettings",
-        "display_name": "AssemblyAI",
-    },
     "gemini-live": {
         "module": "eloGraf.engines.gemini.settings",
         "class": "GeminiSettings",
@@ -92,8 +87,9 @@ def get_engine_display_name(engine_id: str) -> str:
         Human-readable display name
     """
     from PyQt6.QtCore import QCoreApplication
+
     _translate = QCoreApplication.translate
-    
+
     engine = ENGINES.get(engine_id)
     if engine:
         display_name = engine.get("display_name", engine_id)
@@ -107,4 +103,7 @@ def get_engine_choices() -> list[tuple[str, str]]:
     Returns:
         List of tuples: [(engine_id, display_name), ...]
     """
-    return [(engine_id, get_engine_display_name(engine_id)) for engine_id in get_all_engine_ids()]
+    return [
+        (engine_id, get_engine_display_name(engine_id))
+        for engine_id in get_all_engine_ids()
+    ]
